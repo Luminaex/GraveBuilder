@@ -10,8 +10,8 @@ namespace GraveBuilder
 {
     // Content plugin built on GraveFramework: the framework owns mod
     // discovery, the generic content/<type>/ injectors, the load report and Ctrl+F6
-    // hot-reload; this plugin keeps only its own bespoke patches (whose static Reload()
-    // methods, if any, the framework's hot-reload still finds by reflection).
+    // hot-reload; this plugin holds only the map builder's own patches (the builder UI, the
+    // sandbox-override unlock and the Contracts list's CUSTOM MAPS section).
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
     [BepInDependency(GraveFramework.Plugin.PluginGuid)]
     public class Plugin : BaseUnityPlugin

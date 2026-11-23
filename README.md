@@ -25,9 +25,6 @@ Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — instal
   restarting.
 - **Parts library** — save/load a clipboard selection as a reusable named piece
   (`content/parts/<name>.json`) to build up a kit of reusable map fragments.
-- **Other unlocks bundled in**: new campaign chapter content, new ship parts/weapon
-  mechanics, refinery tier-cap removal, ore recolouring, and mod-supported localisation — see
-  the comments at the top of each `*Patch.cs` file in this repo for what each one does.
 
 ## Installing (for players)
 
@@ -64,8 +61,7 @@ Exported structures write every band field to JSON, but the reader currently onl
 
 ## Status
 
-Early v1. The sandbox-override unlock, new contracts/mods/boosters/anomalies/quotas, refinery
-tier cap, recolouring and localisation have all been verified live in-game. The map builder UI
-itself is new in this release and has been reviewed but not yet smoke-tested end-to-end in a
+Early v1. The sandbox-override unlock and loading `content/structures/` maps as contracts
+(via GraveFramework) have been verified live in-game. The map builder UI itself is new in this release and has been reviewed but not yet smoke-tested end-to-end in a
 live session — try it and open an issue if something doesn't work. Not affiliated with
 AnchorheadGames.
