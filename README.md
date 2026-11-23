@@ -31,8 +31,15 @@ Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — instal
 
 ## Installing (for players)
 
-1. Install [GraveFramework](https://github.com/Luminaex/GraveFramework) first.
-2. Drop `GraveBuilder.dll` into `BepInEx/plugins/GraveBuilder/`.
+1. Install [BepInEx 5.4.x (Mono)](https://github.com/BepInEx/BepInEx/releases) into your
+   Graveyard Orbit install, if you haven't already — extract its zip into the game's install
+   folder and run the game once so it finishes setting itself up.
+2. Install [GraveFramework](https://github.com/Luminaex/GraveFramework) first (same steps,
+   its own release).
+3. Download the latest release zip from this repo's
+   [Releases](https://github.com/Luminaex/GraveBuilder/releases) page and extract it into
+   `BepInEx/plugins/`, so you end up with `BepInEx/plugins/GraveBuilder/GraveBuilder.dll` plus
+   its bundled content folders.
 
 ## Building from source
 
