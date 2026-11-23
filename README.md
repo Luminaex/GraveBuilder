@@ -17,7 +17,7 @@ install that first.
   title screen. Paint/erase/fill/line/circle tools, mirror painting, undo/redo, a clipboard for
   copy-pasting sections between maps, and a library view for loading/exporting saved work.
 - **Instant playtest** — "Save Override" writes the map to this plugin's own
-  `sandbox_map.json`; the next mining sortie you start loads it instead of the default
+  `sandbox_map.json`; the next mining mission you start loads it instead of the default
   structure. No restart needed.
 - **Publish as a contract** — "Export Structure" writes the map into
   `content/structures/` in the framework's format, so it shows up as a real selectable
