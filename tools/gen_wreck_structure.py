@@ -244,7 +244,7 @@ def main():
         "green_count": -1,
     }
 
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "content", "structures", "images", args.structure_id)
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "GraveBuilder", "content", "structures", "images", args.structure_id)
     out_dir = os.path.normpath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, f"{args.structure_id}.json"), "w") as f:

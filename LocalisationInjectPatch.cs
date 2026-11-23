@@ -7,7 +7,7 @@ using GraveyardOrbit;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // Adds mod-supported languages. Loc.Languages is public static readonly (readonly only
     // blocks normal reassignment, not FieldInfo.SetValue — same bypass as RefineryLine.Tiers)

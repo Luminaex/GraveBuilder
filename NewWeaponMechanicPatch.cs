@@ -2,7 +2,7 @@ using GraveyardOrbit;
 using HarmonyLib;
 using UnityEngine;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // Proves a genuinely NEW weapon mechanic (not a reskin of existing behavior) is
     // possible via ModRuntime — the devs' own generic per-hit/per-kill dispatch system.

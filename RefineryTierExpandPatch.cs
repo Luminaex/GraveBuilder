@@ -3,7 +3,7 @@ using System.Reflection;
 using GraveyardOrbit;
 using HarmonyLib;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // Proves out the Refinery/Extractor tier cap can be lifted. RefineryLine.Tiers is a
     // public static readonly TierDef[] (5 entries) — readonly only blocks reassignment from

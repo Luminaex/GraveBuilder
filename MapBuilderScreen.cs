@@ -13,7 +13,7 @@ using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // In-game map builder (Ctrl+F7, or MAP BUILDER on the title screen): paint a SandboxMap on
     // a 2D hex grid, then either save it as the sandbox override (the next real mining sortie

@@ -7,7 +7,7 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // The deepest patch in the project: a genuinely new campaign chapter, integrated into
     // the real Campaign Hub (not just an Overtime-style contract).

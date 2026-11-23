@@ -6,17 +6,17 @@ using GraveyardOrbit;
 using HarmonyLib;
 using UnityEngine;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
-    // Content plugin built on GraveyardOrbitModdingFramework: the framework owns mod
+    // Content plugin built on GraveFramework: the framework owns mod
     // discovery, the generic content/<type>/ injectors, the load report and Ctrl+F6
     // hot-reload; this plugin keeps only its own bespoke patches (whose static Reload()
     // methods, if any, the framework's hot-reload still finds by reflection).
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(GraveyardOrbitModdingFramework.Plugin.PluginGuid)]
+    [BepInDependency(GraveFramework.Plugin.PluginGuid)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string PluginGuid = "com.luminaex.sandboxmapunlock";
+        public const string PluginGuid = "com.luminaex.gravebuilder";
         public const string PluginName = "GraveBuilder";
         public const string PluginVersion = "1.0.0";
 

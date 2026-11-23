@@ -8,8 +8,7 @@ Paint a mining-field layout visually, instead of hand-authoring cell JSON, then 
 playtest it instantly or publish it as a real contract other players can see in the Contracts
 list.
 
-Requires [GraveyardOrbitModdingFramework](https://github.com/Luminaex/GraveFramework) —
-install that first.
+Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — install that first.
 
 ## What it does
 
@@ -17,7 +16,7 @@ install that first.
   title screen. Paint/erase/fill/line/circle tools, mirror painting, undo/redo, a clipboard for
   copy-pasting sections between maps, and a library view for loading/exporting saved work.
 - **Instant playtest** — "Save Override" writes the map to this plugin's own
-  `sandbox_map.json`; the next mining mission you start loads it instead of the default
+  `sandbox_map.json`; the next mining sortie you start loads it instead of the default
   structure. No restart needed.
 - **Publish as a contract** — "Export Structure" writes the map into
   `content/structures/` in the framework's format, so it shows up as a real selectable
@@ -32,15 +31,15 @@ install that first.
 
 ## Installing (for players)
 
-1. Install [GraveyardOrbitModdingFramework](https://github.com/Luminaex/GraveFramework) first.
-2. Drop `SandboxMapUnlock.dll` into `BepInEx/plugins/SandboxMapUnlock/`.
+1. Install [GraveFramework](https://github.com/Luminaex/GraveFramework) first.
+2. Drop `GraveBuilder.dll` into `BepInEx/plugins/GraveBuilder/`.
 
 ## Building from source
 
 Requires the .NET SDK, a local install of Graveyard Orbit, **and a clone of
-[GraveyardOrbitModdingFramework](https://github.com/Luminaex/GraveFramework) as a sibling
-folder named `GraveFramework`** (the default name `git clone` gives it) — this project
-references it via a relative `ProjectReference`:
+[GraveFramework](https://github.com/Luminaex/GraveFramework) as a sibling folder named
+`GraveFramework`** (the default name `git clone` gives it) — this project references it via a
+relative `ProjectReference`:
 
 ```
 some-folder/
@@ -48,7 +47,7 @@ some-folder/
 └── GraveBuilder/          (this repo)
 ```
 
-Edit the `$(GameDir)` property at the top of `SandboxMapUnlock.csproj` to point at your own
+Edit the `$(GameDir)` property at the top of `GraveBuilder.csproj` to point at your own
 Graveyard Orbit install, then `dotnet build`.
 
 ## Known gap

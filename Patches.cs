@@ -5,7 +5,7 @@ using GraveyardOrbit;
 using HarmonyLib;
 using UnityEngine.UIElements;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // SandboxMap.ActiveOverride is a hardcoded stub ("return false;") in the shipped build.
     // Re-point it at whether our override file actually exists.

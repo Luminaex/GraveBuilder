@@ -2,7 +2,7 @@ using GraveyardOrbit;
 using HarmonyLib;
 using UnityEngine;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // CORRECTED after testing: ColourTokens.PinkColor is NOT the actual tile/market-price
     // rendering source — set it to an unmistakable bright green, read the field back

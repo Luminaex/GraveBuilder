@@ -5,9 +5,9 @@ using GraveyardOrbit;
 using GraveyardOrbit.UI;
 using HarmonyLib;
 using UnityEngine.UIElements;
-using StructuresInjectPatch = GraveyardOrbitModdingFramework.StructuresInjectPatch;
+using StructuresInjectPatch = GraveFramework.StructuresInjectPatch;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // Contracts screen: a "CUSTOM MAPS" section after "ALL CONTRACTS", listing every structure
     // the framework injected from content/structures/. Purely additive: the stock method runs

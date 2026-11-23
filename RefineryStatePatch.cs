@@ -4,7 +4,7 @@ using GraveyardOrbit;
 using GraveyardOrbit.UI;
 using HarmonyLib;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // The real gate on the Expand button turned out to be RefineryScreen.State(CardKind)'s
     // own independently-hardcoded "line.Tier >= 5" (RefineryScreen.cs:791) — not

@@ -5,7 +5,7 @@ using GraveyardOrbit.UI;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // What the canvas needs from its owning screen. The canvas only turns pointer input into
     // grid coordinates; brush size, mirroring, flood fill and undo recording all live in the

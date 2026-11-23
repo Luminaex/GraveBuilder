@@ -8,7 +8,7 @@ using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
-namespace SandboxMapUnlock
+namespace GraveBuilder
 {
     // Injects community-authored new ship parts into the live GameData right after
     // GameConfig.Load() hydrates from the baked GameData.asset. A "new part" needs three

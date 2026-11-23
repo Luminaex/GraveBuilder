@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>SandboxMapUnlock</AssemblyName>
+    <AssemblyName>GraveBuilder</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -54,9 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Assumes GraveyardOrbitModdingFramework (github.com/Luminaex/GraveFramework) is
-         cloned as a sibling folder named GraveFramework — see this repo's README. -->
-    <ProjectReference Include="..\GraveFramework\GraveyardOrbitModdingFramework.csproj">
+    <ProjectReference Include="..\GraveFramework\GraveFramework.csproj">
       <!-- Deployed as its own plugin; don't copy a second framework DLL into this output. -->
       <Private>false</Private>
     </ProjectReference>

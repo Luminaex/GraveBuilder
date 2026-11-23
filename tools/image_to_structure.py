@@ -1,6 +1,6 @@
 """
 Converts an image into a Graveyard Orbit hex-grid "structure" (map/contract) that can be
-loaded via SandboxMapUnlock's StructuresInjectPatch.cs — the same proven new-contract
+loaded via GraveBuilder's StructuresInjectPatch.cs — the same proven new-contract
 injection pattern already confirmed working in-game, no new C# code needed.
 
 Usage:
@@ -229,7 +229,7 @@ def main():
         "green_count": -1,
     }
 
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "content", "structures", "images", args.structure_id)
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mods", "GraveBuilder", "content", "structures", "images", args.structure_id)
     out_dir = os.path.normpath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
 
