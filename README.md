@@ -28,6 +28,11 @@ Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — instal
 
 ## Installing (for players)
 
+**Recommended:** install via [r2modman](https://thunderstore.io/package/ebkr/r2modman/) or the
+Thunderstore Mod Manager — search for "GraveBuilder" under Graveyard Orbit and click Install.
+GraveFramework and BepInEx are installed automatically as dependencies.
+
+**Manual install:**
 1. Install [BepInEx 5.4.x (Mono)](https://github.com/BepInEx/BepInEx/releases) into your
    Graveyard Orbit install, if you haven't already — extract its zip into the game's install
    folder and run the game once so it finishes setting itself up.
