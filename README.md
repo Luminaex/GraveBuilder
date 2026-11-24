@@ -21,10 +21,14 @@ Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — instal
 - **Publish as a contract** — "Export Structure" writes the map into
   `content/structures/` in the framework's format, so it shows up as a real selectable
   contract. Exported maps are grouped into their own **CUSTOM MAPS** section in the Contracts
-  list. Press `Ctrl+F6` afterwards (the framework's hot-reload) to pick it up without
-  restarting.
+  list. Click **RELOAD MODS** on that page afterwards (the framework's hot-reload) to pick it
+  up without restarting.
 - **Parts library** — save/load a clipboard selection as a reusable named piece
   (`content/parts/<name>.json`) to build up a kit of reusable map fragments.
+- **Load an image** — "Load Image" in the library view turns a PNG or JPEG into a map, matched
+  to the five real ore colours (with optional dithering) or by brightness alone, with
+  transparent pixels as gaps. Replaces the current map as one undoable step, so settings are
+  easy to compare.
 
 ## Installing (for players)
 
@@ -56,7 +60,7 @@ some-folder/
 └── GraveBuilder/          (this repo)
 ```
 
-Edit the `$(GameDir)` property at the top of `GraveBuilder.csproj` to point at your own
+Edit the `$(GameDir)` property in this repo's root `Directory.Build.props` to point at your own
 Graveyard Orbit install, then `dotnet build`.
 
 ## Known gap

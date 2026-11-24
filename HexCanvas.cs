@@ -110,7 +110,11 @@ namespace GraveBuilder
         private const float FitMargin = 0.96f;
 
         public const float MinZoom = 0.25f;
-        public const float MaxZoom = 4f;
+        // Zoom multiplies the fit-to-whole-grid scale, so a big map (a large radius, or an
+        // imported image) starts from a much smaller base scale than a small one — 4x wasn't
+        // enough headroom to get close on those, confirmed live. Flat cap, not extent-scaled:
+        // simpler, and a small map simply has zoom range it may not need, no downside either way.
+        public const float MaxZoom = 20f;
         // Same wheel handling as the game's ModTreeScreen: clamp delta, 1.3x per unit.
         private const float WheelClamp = 1.5f;
         private const float WheelBase = 1.3f;

@@ -17,14 +17,19 @@ namespace GraveBuilder
 {
     // In-game map builder (Ctrl+F7, or MAP BUILDER on the title screen): paint a SandboxMap on
     // a 2D hex grid, then either save it as the sandbox override (the next real mining sortie
-    // loads it, see Patches.cs) or export it as a content/structures/ contract for the
-    // framework's Ctrl+F6 hot-reload. Existing structures (our own exports and the game's
-    // catalogue) can be loaded back in to edit, and our own exports deleted (with a confirm).
+    // loads it, see Patches.cs) or export it as a content/structures/ contract (the export
+    // runs the framework's reload, RELOAD MODS's path, so it's live at once). Existing structures (our
+    // own exports and the game's catalogue) can be loaded back in to edit, and our own
+    // exports deleted (with a confirm). Opening, closing and the Simple/Advanced switch run
+    // behind the game's hex wipe (WipeSwap); Ctrl+Z/Y/C/X/V work in the painting view
+    // (OnShortcutKey).
     // Button explanations are hover tooltips (AttachTooltip), not static paragraphs.
     //
     // Styled with the game's own UI toolkits (TerminalUi.Frame shell, MetaUi buttons, heads,
     // table rows and callouts) so it reads like one of the game's menus; the accent family is
-    // MetaUi.Teal (Campaign is orange, Overtime red). Owns its own UIDocument like
+    // MetaUi.Orange, the Contracts list's own (this builds contracts, and its rows copy
+    // ModeSelectController.AddRow). It was Teal as a separate identity until the user asked
+    // for it to follow the game's theme (2026-11-23). Owns its own UIDocument like
     // BoostersScreen.Create. Destroyed on close and rebuilt on open (MainMenuBoot's
     // convention); the map, the tool, the undo history and the form values are static, so
     // closing and reopening keeps the work.
@@ -33,12 +38,16 @@ namespace GraveBuilder
     // toggle keys sits over its top edge (PALETTE, TOOLS, MAP on the right), and each key
     // shows/hides its own floating panel dropped down under it; any number can be open at
     // once. These are the "ongoing tool" panels you keep open while painting. The library
-    // view (Advanced only, STRUCTURES & PARTS in the foot band): a full-screen page that
-    // replaces the canvas and panels while it's open, styled like the game's Contracts list
-    // (section heads, slab rows), with three sections: LOAD STRUCTURE, LOAD PART (and save
-    // the clipboard as one), EXPORT AS STRUCTURE (contract details + band editor). BACK TO MAP
-    // returns to the painting view with the same panels open; the map, selection, clipboard
-    // and undo history are static, so the swap never touches them.
+    // (Advanced only, STRUCTURES & PARTS in the foot band): a modal overlay (dim backdrop +
+    // centred card) over the still-live painting view, styled like the game's Contracts list
+    // (section heads, slab rows), with four sections: LOAD STRUCTURE, LOAD IMAGE (a PNG/JPEG
+    // painted in the substrate colours), LOAD PART (and save the clipboard as one), EXPORT AS
+    // STRUCTURE (contract details + band editor). Each section is collapsible: clicking its
+    // head (▸ closed, ▾ open) shows or hides it, all four start collapsed, and which are open
+    // is remembered like the floating panels (_librarySectionOpen). Controls are compact
+    // (paired fields, chip-sized toggles, short rows) with detail in tooltips. BACK TO MAP
+    // just removes the overlay (instant, no rebuild, no wipe); the painting view under it
+    // was never torn down.
     //
     // Two modes, switched by the MODE key in the foot band and remembered in
     // mapbuilder_prefs.json: Simple (default; PALETTE/TOOLS/MAP with colours + erase, brush
@@ -62,6 +71,13 @@ namespace GraveBuilder
         private const int MinRadius = 1;
         private const int MaxRadius = 300;
         private const int MaxBrush = 10;
+        // LOAD IMAGE's longest grid side, in cells. Default matches tools/image_to_structure.py.
+        // The cap keeps the result inside MaxRadius: a centred W x H offset rectangle reaches
+        // about (W + H/2)/2 from its middle, so the worst case (W = H = size) is 0.75 * size.
+        private const int DefaultImageSize = 140;
+        private const int MaxImageSize = MaxRadius * 4 / 3;
+        // Below this alpha (of 255) a pixel is a hole: no cell at all. image_to_structure.py's default.
+        private const int DefaultImageAlpha = 16;
         private const int DefaultStartingMoney = 500;
         private const string DefaultId = "builder_map";
         private const string DefaultName = "Builder Map";
@@ -123,13 +139,17 @@ namespace GraveBuilder
         private static readonly Regex PartNameInvalid = new Regex("[^a-z0-9_]+");
 
         // Panel accent family (see class comment).
-        private static readonly Color Accent = MetaUi.Teal;
-        private static readonly Color AccentLt = MetaUi.TealLt;
+        private static readonly Color Accent = MetaUi.Orange;
+        private static readonly Color AccentLt = MetaUi.OrangeLt;
         private static readonly Color BodyText = MetaUi.Fade(MetaUi.Ink, 0.82f);
         private static readonly Color DimText = MetaUi.Fade(MetaUi.Ink, 0.6f);
         // Family for "off" toggles and game-catalogue list entries.
         private static readonly Color Neutral = new Color(0.55f, 0.58f, 0.62f);
         private static readonly Color SelectedEdge = Color.white;
+        // SegmentSwitch: SettingsModal's own control fill (its Control) and a near-black ink
+        // for the word on the filled half (its OnOrange; same accent family now).
+        private static readonly Color SwitchControl = new Color32(18, 18, 26, 255);
+        private static readonly Color SwitchInk = new Color32(18, 10, 0, 255);
 
         // ---- band editor field table -----------------------------------------------------
         // One row per BandDef field, in BandDef's order. Key = the struct-def JSON key (the
@@ -160,7 +180,7 @@ namespace GraveBuilder
         private static readonly BandField[] BandFields =
         {
             new BandField { Key = "layer", Label = "Substrate colour", Default = "1", Min = 1, Max = 5,
-                Tooltip = "Which painted colour this band is made of: every cell painted this colour belongs to this band. If two bands pick the same colour, the first one gets all of its tiles." },
+                Tooltip = "Which painted colour this stage is made of: every cell painted this colour belongs to this stage. If two stages pick the same colour, the first one gets all of its tiles." },
             // Cosmetic only (verified 2026-11-22): the only reader of outerFrac anywhere in the
             // game is StructureHexElement, the little hex icon in the Contracts menu — it draws
             // this band's ring at this fraction of that icon's radius. No sortie/mining code
@@ -168,40 +188,38 @@ namespace GraveBuilder
             // (StructureDef.BandIndexOfLayer), and unlock order is purely the bands[] array
             // order. Label reflects that it's just the preview icon, not a real boundary.
             new BandField { Key = "outer_frac", Label = "Preview icon ring size", Default = "1", IsFloat = true, Min = 0, Max = 1,
-                Tooltip = "Cosmetic only. How far out this band's ring is drawn on the little hex icon in the Contracts list, as a fraction of the icon's radius (0 to 1). It doesn't change which tiles are in the band." },
-            new BandField { Key = "hp_sealed", Label = "Tile health while sealed", Default = "75", Min = 0, Max = int.MaxValue,
-                Tooltip = "Hit points each of this band's tiles has while the band is still sealed (locked). Higher = slower to mine through. Default 75." },
+                Tooltip = "Cosmetic only. How far out this stage's ring is drawn on the little hex icon in the Contracts list, as a fraction of the icon's radius (0 to 1). It doesn't change which tiles are in the stage." },
+            new BandField { Key = "hp_sealed", Label = "While sealed", Default = "75", Min = 0, Max = int.MaxValue,
+                Tooltip = "Hit points each of this stage's tiles has while the stage is still sealed (locked). Higher = slower to mine through. Default 75." },
             new BandField { Key = "special_1", Label = "Laser shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Laser Shard pickups (the shard currency used to research Mods) are seeded into this band's tiles." },
+                Tooltip = "How many Laser Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
             new BandField { Key = "special_2", Label = "Breacher shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Breacher Shard pickups (the shard currency used to research Mods) are seeded into this band's tiles." },
+                Tooltip = "How many Breacher Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
             new BandField { Key = "special_3", Label = "Dynamo shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Dynamo Shard pickups (the shard currency used to research Mods) are seeded into this band's tiles." },
+                Tooltip = "How many Dynamo Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
             new BandField { Key = "meta_1", Label = "Pulse shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Pulse Shard pickups (the shard currency used to research Mods) are seeded into this band's tiles." },
+                Tooltip = "How many Pulse Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
             new BandField { Key = "explosive", Label = "Explosive", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Explosive enemy encounters are seeded into this band's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
+                Tooltip = "How many hidden Explosive enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
             new BandField { Key = "lightning", Label = "Lightning", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Lightning enemy encounters are seeded into this band's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
+                Tooltip = "How many hidden Lightning enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
             new BandField { Key = "void", Label = "Void", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Void enemy encounters are seeded into this band's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
+                Tooltip = "How many hidden Void enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
             new BandField { Key = "swarm", Label = "Swarm", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Swarm enemy encounters are seeded into this band's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
+                Tooltip = "How many hidden Swarm enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
             // TileField.LookLayer: once the band is unsealed its tiles are drawn with the look
             // of layer unsealedLook instead of their painted layer (0 or less = painted look).
             new BandField { Key = "unsealed_look", Label = "Core look after unlocking", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "Cosmetic only, no gameplay effect. Once this band unlocks, its tiles are drawn with the look of another colour: 1 Grey, 2 Blue, 3 Pink, 4 Gold, 5 Purple. 0 keeps the colour you painted." },
+                Tooltip = "Cosmetic only, no gameplay effect. Once this stage unlocks, its tiles are drawn with the look of another colour: 1 Grey, 2 Blue, 3 Pink, 4 Gold, 5 Purple. 0 keeps the colour you painted." },
         };
 
-        // BandFields indices, for the band editor's grouped layout (BandRow).
+        // BandFields indices the UI still shows (BandRow). The rest of BandFields (outer_frac,
+        // the shard/enemy counts, unsealed_look) stays in the array — BandsToJson still needs
+        // to export them so re-exporting an existing structure round-trips its values unchanged
+        // — but has no editor UI any more (removed 2026-11-24: the framework doesn't read any
+        // of them, so showing controls for them was pure clutter; see BandRow's comment).
         private const int BandLayer = 0;
-        private const int BandOuterFrac = 1;
         private const int BandHpSealed = 2;
-        private const int BandShardsFrom = 3;
-        private const int BandShardsTo = 6;
-        private const int BandEnemiesFrom = 7;
-        private const int BandEnemiesTo = 10;
-        private const int BandUnsealedLook = 11;
 
         // ---- floating panels ---------------------------------------------------------------
         // One toggle key + one floating panel each (PALETTE, TOOLS, MAP; the painting view
@@ -226,11 +244,13 @@ namespace GraveBuilder
         // Library view: content column width cap (it's a list page, not a full-bleed canvas)
         // and the inner list heights, so a long game catalogue doesn't push LOAD PART and
         // EXPORT far down the page.
-        private const float LibraryMaxWidth = 1700f;
+        private const float LibraryMaxWidth = 1200f;
         private const float LoadListMaxHeight = 620f;
         private const float PartsListMaxHeight = 460f;
-        // Warnings in the export form (a valid value with a consequence worth knowing).
-        private static readonly Color WarnText = TerminalUi.Orange;
+        // Warnings in the export form (a valid value with a consequence worth knowing). Was
+        // TerminalUi.Orange, which vanished into the orange accent; the terminal's warm red
+        // still stands apart from it and from the pinker MetaUi.Crimson used for errors.
+        private static readonly Color WarnText = TerminalUi.Red;
 
         // Inset of the key bar and panels from the canvas edges, gap between them.
         private const float PanelEdge = 14f;
@@ -302,6 +322,9 @@ namespace GraveBuilder
         // Advanced-only panel's flag just waits while Simple doesn't build it). PALETTE starts
         // open so there's something to paint with straight away.
         private static readonly Dictionary<string, bool> _panelOpen = new Dictionary<string, bool> { [PanelPalette] = true };
+        // Which library sections are expanded, by head title; same lifetime as _panelOpen.
+        // Empty to start, so the page opens as four one-line heads.
+        private static readonly Dictionary<string, bool> _librarySectionOpen = new Dictionary<string, bool>();
 
         private static readonly List<Edit> _undo = new List<Edit>();
         private static readonly List<Edit> _redo = new List<Edit>();
@@ -313,10 +336,15 @@ namespace GraveBuilder
         private static string _nameText = DefaultName;
         private static string _moneyText = DefaultStartingMoney.ToString();
         private static string _partNameText = "";
+        private static string _imagePathText = "";
+        private static string _imageSizeText = DefaultImageSize.ToString();
+        private static string _imageAlphaText = DefaultImageAlpha.ToString();
+        // LOAD IMAGE's options, image_to_structure.py's --color-mode / --invert / --no-dither,
+        // exposed so the look can be tuned live. Defaults match the script's.
+        private static bool _imageLuminance;
+        private static bool _imageInvert;
+        private static bool _imageDither = true;
         private static readonly List<string[]> _bands = new List<string[]> { DefaultBand() };
-        // Bands whose cosmetic fields are expanded in the band editor, by their _bands value
-        // array (reference equality), so removing a band doesn't shift the others' state.
-        private static readonly HashSet<string[]> _bandCosmeticShown = new HashSet<string[]>();
 
         private static string _lastStatus;
         private static bool _lastStatusError;
@@ -326,12 +354,22 @@ namespace GraveBuilder
         private UIDocument _doc;
         private PanelSettings _panelCopy;
         private HexCanvas _canvas;
-        // Which view Build shows: the painting view (false) or the full-screen library (true,
-        // Advanced only). Per instance, so reopening the builder always starts on the canvas.
+        // Whether the library overlay (STRUCTURES & PARTS, Advanced only) is up over the
+        // painting view. Per instance, so reopening the builder always starts on the canvas.
         private bool _libraryOpen;
-        // Fills the frame body: the canvas plus everything floating over it (painting view),
-        // or the library page (library view). Either way the tooltip box lives in it.
+        // The library overlay's root (dim backdrop + centred frame), a later sibling of the
+        // painting frame under root; null while closed.
+        private VisualElement _libraryOverlay;
+        // Fills the painting frame's body: the canvas plus everything floating over it. Always
+        // the painting view's, overlay or not (LayoutPanels positions against it).
         private VisualElement _stage;
+        // Where the tooltip box lives and is positioned: _stage normally, the library page's
+        // own stage while the overlay is up. The painting view's tooltip and status host are
+        // parked in _paint* meanwhile and put back on close.
+        private VisualElement _tipStage;
+        private VisualElement _paintTooltip;
+        private Label _paintTooltipText;
+        private VisualElement _paintStatusHost;
         private List<PanelDef> _panelDefs = new List<PanelDef>();
         private readonly Dictionary<string, VisualElement> _panels = new Dictionary<string, VisualElement>();
         private readonly Dictionary<string, VisualElement> _panelKeyHosts = new Dictionary<string, VisualElement>();
@@ -344,10 +382,23 @@ namespace GraveBuilder
         private VisualElement _clipRow;
         private VisualElement _bandHost;
         private VisualElement _loadListHost;
+        // The detail pane beside the list (Contracts-screen style): preview, name, description
+        // and the LOAD SELECTED/DELETE actions for whichever row is selected. Rebuilt wholesale
+        // on every selection change rather than patched in place — selection is infrequent and a
+        // full rebuild is far simpler than tracking each piece.
+        private VisualElement _loadDetailHost;
         private VisualElement _partSaveHost;
         private VisualElement _partsListHost;
         private TextField _partNameField;
         private TextField _radiusField;
+        private TextField _imagePathField;
+        private TextField _imageSizeField;
+        private TextField _imageAlphaField;
+        private VisualElement _imageOptionsHost;
+        // One-line summaries on the LOAD STRUCTURE / LOAD PART heads, kept current by the
+        // list rebuilds so a collapsed section still says what's in it.
+        private Label _loadSummary;
+        private Label _partsSummary;
         private SliderInt _radiusSlider;
         private TextField _brushField;
         private SliderInt _brushSlider;
@@ -362,6 +413,7 @@ namespace GraveBuilder
         private readonly Dictionary<string, Label> _statValues = new Dictionary<string, Label>();
         private bool _statsDirty;
         private bool _statsTickScheduled;
+        private bool _shortcutsWired;
 
         private readonly List<LoadEntry> _loadEntries = new List<LoadEntry>();
         private readonly List<VisualElement> _loadHolders = new List<VisualElement>();
@@ -382,9 +434,9 @@ namespace GraveBuilder
 
         // Catalogue entries for our own exports deleted this session (DeleteLocalStructure):
         // the framework injected them into StructureCatalog at load, and they stay there until
-        // the next Ctrl+F6, so without this they'd reappear in the load list as grey game
+        // the next RELOAD MODS, so without this they'd reappear in the load list as grey game
         // structures the moment their local file is gone. Exact references, so a re-export +
-        // Ctrl+F6 (a new StructureDef object) shows normally. Static: survives close/reopen.
+        // RELOAD MODS (a new StructureDef object) shows normally. Static: survives close/reopen.
         private static readonly HashSet<StructureDef> _deletedInjected = new HashSet<StructureDef>();
 
         // Open action (stroke / fill / new / load / grow): prior state of every touched cell.
@@ -394,19 +446,77 @@ namespace GraveBuilder
 
         public static bool IsOpen => _instance != null;
 
-        public static void Toggle()
+        // Open/Close/Toggle (the title button, Ctrl+F7, the CLOSE key) run behind the game's
+        // own hex wipe, as MainMenuBoot's screen swaps do, instead of popping in and out.
+        // FlowManager's overlay canvas sorts at 32000, above our PanelSortingOrder.
+        // _swapPending drops repeat requests while a wipe is still covering: WipeSwap only
+        // queues one callback, and a second Toggle in that window would act on the state from
+        // before the first had happened.
+        private static bool _swapPending;
+        private static float _swapPendingSince;
+
+        private static void WipeSwap(Action swap)
         {
-            if (IsOpen)
+            // A wipe takes ~1.2 s (two 0.55 s unscaled halves); one that's never called back
+            // (FlowManager torn down mid-wipe) mustn't lock the builder out for the session.
+            if (_swapPending && Time.realtimeSinceStartup - _swapPendingSince < 3f)
             {
-                Close();
+                return;
             }
-            else
+            _swapPending = true;
+            _swapPendingSince = Time.realtimeSinceStartup;
+            void Run()
             {
-                Open();
+                _swapPending = false;
+                swap();
+            }
+            try
+            {
+                FlowManager.I.WipeSwap(Run);
+            }
+            catch (Exception e)
+            {
+                // No transition is better than no builder.
+                Plugin.Log.LogWarning($"MapBuilder: wipe transition unavailable ({e.Message}); swapping instantly.");
+                if (_swapPending)
+                {
+                    Run();
+                }
             }
         }
 
+        public static void Toggle()
+        {
+            WipeSwap(() =>
+            {
+                if (IsOpen)
+                {
+                    CloseNow();
+                }
+                else
+                {
+                    OpenNow();
+                }
+            });
+        }
+
         public static void Open()
+        {
+            if (!IsOpen)
+            {
+                WipeSwap(OpenNow);
+            }
+        }
+
+        public static void Close()
+        {
+            if (IsOpen)
+            {
+                WipeSwap(CloseNow);
+            }
+        }
+
+        private static void OpenNow()
         {
             if (IsOpen)
             {
@@ -440,14 +550,14 @@ namespace GraveBuilder
             if (screen._doc.rootVisualElement == null)
             {
                 Plugin.Log.LogError("MapBuilder: UIDocument has no root visual element, closing.");
-                Close();
+                CloseNow();
                 return;
             }
             screen.Build(screen._doc.rootVisualElement);
             Plugin.Log.LogInfo("MapBuilder: opened.");
         }
 
-        public static void Close()
+        private static void CloseNow()
         {
             if (_instance != null)
             {
@@ -475,17 +585,22 @@ namespace GraveBuilder
 
         // ---- UI construction ----------------------------------------------------------
 
-        // Rebuilds the whole screen from the static state: on open, when the Simple/Advanced
-        // toggle flips, and when the library view opens or closes. Simple and Advanced are two
-        // separate sets of floating panels (SimplePanels / AdvancedPanels) over the same shared
-        // state, so switching never loses work; the library view (BuildLibraryView) is a
-        // second top-level view over that same state, branched on _libraryOpen.
+        // Rebuilds the whole screen from the static state: on open and when the Simple/Advanced
+        // toggle flips. Simple and Advanced are two separate sets of floating panels
+        // (SimplePanels / AdvancedPanels) over the same shared state, so switching never loses
+        // work. The library is not a view this switches between: it's an overlay added on top
+        // of the painting view (ShowLibrary / CloseLibrary) without a rebuild.
         private void Build(VisualElement root)
         {
             root.Clear();
             // Element references from a previous build point at detached elements; drop them so
             // the Refresh* helpers no-op for sections the current view doesn't show.
             _stage = null;
+            _tipStage = null;
+            _libraryOverlay = null;
+            _paintTooltip = null;
+            _paintTooltipText = null;
+            _paintStatusHost = null;
             _tooltip = null;
             _tooltipText = null;
             _tooltipOwner = null;
@@ -508,11 +623,18 @@ namespace GraveBuilder
             _historyRow = null;
             _bandHost = null;
             _loadListHost = null;
+            _loadDetailHost = null;
             _loadHolders.Clear();
             _partSaveHost = null;
             _partsListHost = null;
             _partNameField = null;
             _radiusField = null;
+            _imagePathField = null;
+            _imageSizeField = null;
+            _imageAlphaField = null;
+            _imageOptionsHost = null;
+            _loadSummary = null;
+            _partsSummary = null;
             _radiusSlider = null;
             _brushField = null;
             _brushSlider = null;
@@ -534,7 +656,8 @@ namespace GraveBuilder
             }
 
             // Shell: the game's terminal frame (chamfered glass panel, header band, foot band).
-            TerminalUi.Frame(root, Accent, _libraryOpen ? "MAP BUILDER · LIBRARY" : "MAP BUILDER", out VisualElement body, out VisualElement foot, "map-builder-frame");
+            // Always the painting view; the library is an overlay on top of it (ShowLibrary).
+            TerminalUi.Frame(root, Accent, "MAP BUILDER", out VisualElement body, out VisualElement foot, "map-builder-frame");
 
             // A hair of inset so the canvas doesn't paint over the frame's own edge stroke.
             body.style.flexDirection = FlexDirection.Column;
@@ -543,13 +666,12 @@ namespace GraveBuilder
             body.style.paddingTop = 0f;
             body.style.paddingBottom = 0f;
 
+            BuildPaintingView(body, foot);
+            // A rebuild with the overlay up (none reachable today, since the overlay covers the
+            // MODE key, but cheap to honour) puts it back over the new painting view.
             if (_libraryOpen)
             {
-                BuildLibraryView(body, foot);
-            }
-            else
-            {
-                BuildPaintingView(body, foot);
+                ShowLibrary(root);
             }
 
             UpdateStatsNow();
@@ -580,6 +702,86 @@ namespace GraveBuilder
             // The game's click/hover sounds for every button in this panel (UiSfx.Wire is
             // idempotent per root).
             UiSfx.Wire(root);
+
+            // Editor shortcuts. On the panel's own top element, not root: with nothing focused
+            // (the usual case while painting, the canvas doesn't take focus) a key event targets
+            // that top element, which root is only a child of, so root would never see it.
+            // Focused elements' events bubble up to it too. Registered once per instance: the
+            // panel (our own PanelSettings copy) outlives every rebuild.
+            if (!_shortcutsWired)
+            {
+                VisualElement keyHost = root.panel?.visualTree ?? root;
+                keyHost.RegisterCallback<KeyDownEvent>(OnShortcutKey);
+                _shortcutsWired = true;
+            }
+        }
+
+        // Ctrl+Z undo; Ctrl+Y or Ctrl+Shift+Z redo; Ctrl+C / Ctrl+X / Ctrl+V copy, cut, paste
+        // (Advanced only, like their buttons). The painting view only: the library has no
+        // selection or clipboard actions. Never while a text field has focus, so Ctrl+V/C/X/Z
+        // keep editing the text in Image path, Part name and the rest.
+        private void OnShortcutKey(KeyDownEvent e)
+        {
+            if (!e.ctrlKey || _libraryOpen || _instance != this || _doc == null)
+            {
+                return;
+            }
+            if (IsTextInput(e.target as VisualElement) || IsTextInput(_doc.rootVisualElement?.panel?.focusController?.focusedElement as VisualElement))
+            {
+                return;
+            }
+            bool handled = true;
+            switch (e.keyCode)
+            {
+                case KeyCode.Z:
+                    if (e.shiftKey)
+                    {
+                        Redo();
+                    }
+                    else
+                    {
+                        Undo();
+                    }
+                    break;
+                case KeyCode.Y:
+                    Redo();
+                    break;
+                case KeyCode.C when _advancedMode:
+                    Copy();
+                    break;
+                case KeyCode.X when _advancedMode:
+                    Cut();
+                    break;
+                case KeyCode.V when _advancedMode:
+                    // Starts placement, like PASTE; unlike the button it never cancels it, since
+                    // a second Ctrl+V reads as "paste again", which placement already does.
+                    if (!PasteModeActive)
+                    {
+                        TogglePaste();
+                    }
+                    break;
+                default:
+                    handled = false;
+                    break;
+            }
+            if (handled)
+            {
+                e.StopPropagation();
+            }
+        }
+
+        // The element or any ancestor is a text input (a TextField's inner editor is what
+        // actually holds focus).
+        private static bool IsTextInput(VisualElement ve)
+        {
+            for (; ve != null; ve = ve.parent)
+            {
+                if (ve is TextField)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // The painting view: canvas, key bar, floating panels; foot band with the hovered-cell
@@ -611,7 +813,10 @@ namespace GraveBuilder
             {
                 keys.Add(TerminalUi.FootKey("map-builder-library", "STRUCTURES & PARTS", Accent, OpenLibrary, primary: false, 440f));
             }
-            keys.Add(TerminalUi.FootKey("map-builder-mode", _advancedMode ? "MODE: ADVANCED" : "MODE: SIMPLE", Accent, ToggleMode, primary: false, 330f));
+            keys.Add(AttachTooltip(TerminalUi.FootKey("map-builder-mode", _advancedMode ? "MODE: ADVANCED" : "MODE: SIMPLE", Accent, ToggleModeNow, primary: false, 330f),
+                _advancedMode
+                    ? "Click to switch to Simple mode: just colours, basic painting and the quick sandbox-override test. Hides special tiles, selection/clipboard, and the STRUCTURES & PARTS library."
+                    : "Click to switch to Advanced mode: adds special tiles (enemies/pickups), selection & clipboard, and the STRUCTURES & PARTS library for publishing a real contract."));
             keys.Add(TerminalUi.FootKey("map-builder-close", "CLOSE", Accent, Close, primary: true, 280f));
 
             // Stage: fills the body. Children in paint/pick order (later = on top): canvas,
@@ -622,6 +827,7 @@ namespace GraveBuilder
             _stage.style.flexDirection = FlexDirection.Column;
             _stage.style.overflow = Overflow.Hidden;
             body.Add(_stage);
+            _tipStage = _stage;
 
             // Kept across a mode-toggle rebuild (re-parented into the new stage) so zoom and pan
             // survive; HexCanvas holds no panel-attach state, only the view and stroke state.
@@ -760,30 +966,73 @@ namespace GraveBuilder
             _statValues[id] = value;
         }
 
-        // ---- library view ------------------------------------------------------------
-        // A full-screen page in place of the canvas and its panels (Advanced only), laid out
-        // like the game's Contracts list (ModeSelectController.FillOvertimeList / AddRow):
-        // big section heads, eyebrow sub-heads, and slab rows that light up on hover and
-        // selection. Built from this file's own MetaUi/TerminalUi helpers, not the game's
-        // screen. Opening/closing it is just a rebuild; it only reads and writes the load
+        // ---- library overlay ---------------------------------------------------------
+        // STRUCTURES & PARTS (Advanced only): a modal over the still-live painting view, the
+        // way the game's SETTINGS sits over whatever opened it: a full-screen dim backdrop and
+        // a centred TerminalUi.Frame card. Laid out like the game's Contracts list
+        // (ModeSelectController.FillOvertimeList / AddRow): section heads, eyebrow sub-heads,
+        // slab rows that light up on hover and selection. It only reads and writes the load
         // list, the parts list and the export form, never the map/selection/clipboard/undo
-        // (except through the same LOAD actions the old panels had).
+        // (except through the LOAD actions).
+        //
+        // Opening and closing are a local Add / RemoveFromHierarchy on that overlay: no
+        // rebuild of the painting view and no FlowManager wipe. A wipe here was tried and is
+        // wrong: FlowManager is the game's own screen navigation, which doesn't know about
+        // this screen, and routing an in-screen panel change through it sent the player to
+        // the main menu on close (seen live, repeatedly).
+
+        // Narrower than the first version (1600) — at that width the rows/fields read as
+        // small content floating in a lot of empty horizontal space; this tightens it up.
+        private const float LibraryCardWidth = 1200f;
+        private const float LibraryCardHeight = 1040f;
 
         private void OpenLibrary()
         {
-            if (!_advancedMode)
+            if (!_advancedMode || _libraryOpen || _doc == null || _doc.rootVisualElement == null)
             {
                 return;
             }
             CommitAction();
             _libraryOpen = true;
-            if (_doc != null && _doc.rootVisualElement != null)
-            {
-                Build(_doc.rootVisualElement);
-            }
+            ShowLibrary(_doc.rootVisualElement);
         }
 
-        // Back to the painting view; _panelOpen is untouched, so the same panels reopen.
+        // ---- dev-test auto-open --------------------------------------------------------
+        // Gated entirely by Plugin's devtest_boot.flag check: these two are never called
+        // otherwise. Split in two because Open() plays a ~1.2s wipe animation before the screen
+        // (and _doc) actually exists — Plugin's Update() calls PrepareDevTestOpen() once, then
+        // polls IsOpen and calls FinishDevTestOpen() the frame it flips true. State that Build()
+        // reads (_advancedMode, _bands, _librarySectionOpen) has to be set before Open() so the
+        // very first build already reflects it; OpenLibrary() needs _doc, so it can only happen
+        // after.
+        internal static void PrepareDevTestOpen()
+        {
+            if (!_prefsLoaded)
+            {
+                _advancedMode = LoadAdvancedPref();
+                _prefsLoaded = true;
+            }
+            if (!_advancedMode)
+            {
+                _advancedMode = true;
+                SaveAdvancedPref(true);
+            }
+            if (_bands.Count == 0)
+            {
+                _bands.Add(DefaultBand());
+            }
+            _librarySectionOpen["LOAD STRUCTURE"] = true;
+            _librarySectionOpen["EXPORT AS STRUCTURE"] = true;
+            Open();
+        }
+
+        internal static void FinishDevTestOpen()
+        {
+            _instance?.OpenLibrary();
+        }
+
+        // Back to the painting view, which was never torn down: the same panels, zoom, pan
+        // and tool are all still there.
         private void CloseLibrary()
         {
             if (!_libraryOpen)
@@ -791,33 +1040,133 @@ namespace GraveBuilder
                 return;
             }
             _libraryOpen = false;
-            if (_doc != null && _doc.rootVisualElement != null)
+            HideTooltip(_tooltipOwner);
+            _libraryOverlay?.RemoveFromHierarchy();
+            _libraryOverlay = null;
+
+            // Hand the tooltip and status line back to the painting view.
+            _tipStage = _stage;
+            _tooltip = _paintTooltip;
+            _tooltipText = _paintTooltipText;
+            _tooltipOwner = null;
+            _statusHost = _paintStatusHost;
+            _paintTooltip = null;
+            _paintTooltipText = null;
+            _paintStatusHost = null;
+
+            // Library-only references now point at detached elements; drop them so the
+            // Refresh* helpers no-op until the overlay is built again.
+            _idHint = null;
+            _nameHint = null;
+            _moneyHint = null;
+            _loadRowPaint.Clear();
+            _loadHover = -1;
+            _bandHost = null;
+            _loadListHost = null;
+            _loadDetailHost = null;
+            _loadHolders.Clear();
+            _partSaveHost = null;
+            _partsListHost = null;
+            _partNameField = null;
+            _imagePathField = null;
+            _imageSizeField = null;
+            _imageAlphaField = null;
+            _imageOptionsHost = null;
+            _loadSummary = null;
+            _partsSummary = null;
+            _idField = null;
+            _nameField = null;
+            _moneyField = null;
+
+            // Whatever the library last reported (a load, an export) shows on the map too.
+            if (_lastStatus != null)
             {
-                Build(_doc.rootVisualElement);
+                SetStatus(_lastStatus, _lastStatusError, log: false);
             }
+            // The panels kept their places, but re-run in case the window changed meanwhile.
+            LayoutPanels();
+        }
+
+        // Builds the overlay onto root, above the painting frame (a later sibling, so it's
+        // drawn and picked first).
+        private void ShowLibrary(VisualElement root)
+        {
+            HideTooltip(_tooltipOwner);
+            _paintTooltip = _tooltip;
+            _paintTooltipText = _tooltipText;
+            _paintStatusHost = _statusHost;
+
+            // Dim backdrop over the whole screen. Position picking: it takes every pointer and
+            // wheel event outside the card, and the canvas is not its ancestor, so nothing
+            // propagates to the painting view underneath (modal, like ModalKit's dim).
+            _libraryOverlay = new VisualElement { name = "map-builder-library-overlay", pickingMode = PickingMode.Position };
+            _libraryOverlay.style.position = Position.Absolute;
+            _libraryOverlay.style.left = 0f;
+            _libraryOverlay.style.top = 0f;
+            _libraryOverlay.style.right = 0f;
+            _libraryOverlay.style.bottom = 0f;
+            _libraryOverlay.style.backgroundColor = new Color(0f, 0f, 0f, 0.7f);
+            root.Add(_libraryOverlay);
+
+            // The game's terminal frame, resized from Frame()'s near-fullscreen inset to a
+            // centred card (Frame16x9.Pin's centring: left/top 50%, negative half-size margins).
+            VisualElement frame = TerminalUi.Frame(_libraryOverlay, Accent, "MAP BUILDER · STRUCTURES & PARTS", out VisualElement body, out VisualElement foot, "map-builder-library-frame");
+            frame.style.left = Length.Percent(50f);
+            frame.style.top = Length.Percent(50f);
+            frame.style.right = StyleKeyword.Auto;
+            frame.style.bottom = StyleKeyword.Auto;
+            frame.style.width = LibraryCardWidth;
+            frame.style.height = LibraryCardHeight;
+            frame.style.marginLeft = -LibraryCardWidth / 2f;
+            frame.style.marginTop = -LibraryCardHeight / 2f;
+            body.style.flexDirection = FlexDirection.Column;
+            body.style.paddingLeft = 3f;
+            body.style.paddingRight = 3f;
+            body.style.paddingTop = 0f;
+            body.style.paddingBottom = 0f;
+
+            // The game's own ore-colour stripe (TerminalUi.SpectrumBar: Gold, Blue, Purple, Pink,
+            // green, white) across the top of the card, as a bit of the console look the
+            // Contracts screen's bezel has. Public and self-contained, unlike the bezel itself,
+            // which isn't built by any C# helper we can call.
+            VisualElement stripe = TerminalUi.SpectrumBar(4f);
+            stripe.style.marginBottom = 6f;
+            body.Add(stripe);
+
+            BuildLibraryView(body, foot);
+
+            if (_lastStatus != null)
+            {
+                SetStatus(_lastStatus, _lastStatusError, log: false);
+            }
+            // No UiSfx.Wire here: Build's UiSfx.Wire(root) listens on root by event delegation,
+            // so the overlay's buttons already click and hover; wiring the overlay too would
+            // play every sound twice.
         }
 
         private void BuildLibraryView(VisualElement body, VisualElement foot)
         {
-            // Foot: what this page is on the left; BACK TO MAP (primary) + CLOSE on the right.
-            foot.Add(MetaUi.Text("LOAD A STRUCTURE OR A SAVED PART, OR EXPORT THIS MAP", MetaUi.Face.BodyBold, 18f, DimText, 2f));
+            // Foot: what this page is on the left; BACK TO MAP on the right. No CLOSE here: it
+            // used to sit beside BACK TO MAP looking the same while exiting the whole builder,
+            // and the painting view's own CLOSE is one click away once this is dismissed.
+            foot.Add(MetaUi.Text("LOAD A STRUCTURE, AN IMAGE OR A SAVED PART, OR EXPORT THIS MAP", MetaUi.Face.BodyBold, 18f, DimText, 2f));
             VisualElement keys = TerminalUi.FootKeys(foot, 18f);
             keys.Add(TerminalUi.FootKey("map-builder-back", "BACK TO MAP", Accent, CloseLibrary, primary: true, 380f));
-            keys.Add(TerminalUi.FootKey("map-builder-close", "CLOSE", Accent, Close, primary: false, 280f));
 
-            // Stage: the page scroll, then the status line under it (in flow, so it never
+            // Page stage: the page scroll, then the status line under it (in flow, so it never
             // covers a row), then the tooltip box on top.
-            _stage = new VisualElement { name = "map-builder-library" };
-            _stage.style.flexGrow = 1f;
-            _stage.style.flexDirection = FlexDirection.Column;
-            _stage.style.overflow = Overflow.Hidden;
-            body.Add(_stage);
+            VisualElement pageStage = new VisualElement { name = "map-builder-library" };
+            pageStage.style.flexGrow = 1f;
+            pageStage.style.flexDirection = FlexDirection.Column;
+            pageStage.style.overflow = Overflow.Hidden;
+            body.Add(pageStage);
+            _tipStage = pageStage;
 
             ScrollView page = new ScrollView(ScrollViewMode.Vertical);
             page.style.flexGrow = 1f;
             page.style.flexShrink = 1f;
             page.style.minHeight = 0f;
-            _stage.Add(page);
+            pageStage.Add(page);
             MetaUi.AccentScroll(page, new Color(1f, 1f, 1f, 0.06f), MetaUi.Fade(Accent, 0.45f), MetaUi.Fade(Accent, 0.75f));
 
             VisualElement col = new VisualElement { name = "map-builder-library-column" };
@@ -836,11 +1185,12 @@ namespace GraveBuilder
             _statusHost.style.marginRight = Length.Percent(24f);
             _statusHost.style.marginTop = 8f;
             _statusHost.style.marginBottom = PanelEdge;
-            _stage.Add(_statusHost);
+            pageStage.Add(_statusHost);
 
             BuildTooltip();
 
             BuildLoadStructureSection(col);
+            BuildLoadImageSection(col);
             BuildLoadPartSection(col);
             BuildExportSection(col);
 
@@ -851,23 +1201,114 @@ namespace GraveBuilder
             RefreshExportHints();
         }
 
-        // Library section head: the game's PanelHead, with a rule above every section but the
-        // first so the three read as separate blocks on one long page.
-        private static VisualElement SectionHead(string text, bool first)
+        // Library section: a clickable head (the game's PanelHead with a ▸/▾ chevron and a
+        // trailing rule) over a body that shows or hides with it, the
+        // floating panels' open/close convention (_panelOpen / TogglePanel) applied to the page.
+        // Hiding the body rather than rebuilding it keeps its fields, hints and lists live, so
+        // nothing a section does depends on it being open. tooltip carries the detail the
+        // visible one-liner leaves out; summary (optional) sits on the head's right.
+        // Returns the body to build the section's content into.
+        private VisualElement LibrarySection(VisualElement content, string title, bool first, string tooltip, out Label summary)
         {
-            VisualElement wrap = new VisualElement();
-            if (!first)
+            VisualElement head = new VisualElement();
+            head.style.flexDirection = FlexDirection.Row;
+            head.style.alignItems = Align.Center;
+            head.style.paddingTop = first ? 2f : 14f;
+            head.style.paddingBottom = 10f;
+            Label headText = MetaUi.PanelHead("", Accent);
+            headText.pickingMode = PickingMode.Ignore;
+            headText.style.marginTop = 0f;
+            headText.style.marginBottom = 0f;
+            head.Add(headText);
+            // The rule runs on from the title to the right edge, as SettingsModal.Section draws
+            // its heads, rather than a border across the top of the block.
+            VisualElement rule = new VisualElement { pickingMode = PickingMode.Ignore };
+            rule.style.flexGrow = 1f;
+            rule.style.height = 1f;
+            rule.style.marginLeft = 18f;
+            rule.style.backgroundColor = MetaUi.Fade(Accent, 0.25f);
+            head.Add(rule);
+            summary = MetaUi.Text("", MetaUi.Face.Body, 15f, DimText, 1f);
+            summary.pickingMode = PickingMode.Ignore;
+            summary.style.flexShrink = 0f;
+            summary.style.marginLeft = 16f;
+            head.Add(summary);
+            content.Add(AttachTooltip(head, tooltip));
+
+            VisualElement body = new VisualElement();
+            body.style.paddingBottom = 14f;
+            content.Add(body);
+
+            void Apply()
             {
-                wrap.style.marginTop = 46f;
-                wrap.style.paddingTop = 30f;
-                wrap.style.borderTopWidth = 2f;
-                wrap.style.borderTopColor = MetaUi.Fade(Accent, 0.3f);
+                bool open = _librarySectionOpen.TryGetValue(title, out bool o) && o;
+                headText.text = (open ? "▾ " : "▸ ") + title;
+                body.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
             }
-            Label head = MetaUi.PanelHead(text, Accent);
-            head.style.marginTop = first ? 6f : 0f;
-            head.style.marginBottom = 6f;
-            wrap.Add(head);
-            return wrap;
+            Apply();
+            head.RegisterCallback<ClickEvent>(_ =>
+            {
+                _librarySectionOpen[title] = !(_librarySectionOpen.TryGetValue(title, out bool o) && o);
+                Apply();
+            });
+            // No button under the head to light up, so hovering brightens the title instead.
+            head.RegisterCallback<PointerEnterEvent>(_ => headText.style.color = AccentLt);
+            head.RegisterCallback<PointerLeaveEvent>(_ => headText.style.color = Accent);
+            return body;
+        }
+
+        // Settings-row variant of CompactActionBtn: smaller, and spaced to sit several to a
+        // wrapping Row (see ChipRow).
+        private static VisualElement ChipBtn(string text, Action onClick, bool enabled = true, Color? family = null, bool pulse = false)
+        {
+            VisualElement b = MetaUi.Primary(text, onClick, enabled, 14f, pulse, family ?? Accent, 20f);
+            b.style.alignSelf = Align.FlexStart;
+            b.style.marginBottom = 8f;
+            return b;
+        }
+
+        private static VisualElement ChipRow(params VisualElement[] items)
+        {
+            VisualElement row = Row();
+            row.style.flexWrap = Wrap.Wrap;
+            row.style.alignItems = Align.Center;
+            foreach (VisualElement e in items)
+            {
+                e.style.marginRight = 10f;
+                row.Add(e);
+            }
+            return row;
+        }
+
+        // A small MetaUi.Key for inside list rows: Key's 17px text and padding set the row
+        // height, which was most of why the rows read as tall.
+        private static VisualElement RowKey(string text, Action onClick, float width, Color family)
+        {
+            VisualElement k = MetaUi.Primary(text, onClick, enabled: true, 13f, pulse: false, family, 8f);
+            k.style.width = width;
+            k.style.minWidth = width;
+            k.style.flexShrink = 0f;
+            return k;
+        }
+
+        // Form fields side by side, each column sharing the width equally. A column can be a
+        // bare Field or a Field with its hint under it.
+        private static VisualElement FieldRow(params VisualElement[] columns)
+        {
+            VisualElement row = Row();
+            row.style.alignItems = Align.FlexStart;
+            for (int i = 0; i < columns.Length; i++)
+            {
+                columns[i].style.flexGrow = 1f;
+                columns[i].style.flexBasis = 0f;
+                columns[i].style.minWidth = 0f;
+                if (i < columns.Length - 1)
+                {
+                    columns[i].style.marginRight = 24f;
+                }
+                row.Add(columns[i]);
+            }
+            return row;
         }
 
         // Sub-heading inside a library section, as the Contracts list's ListHeader
@@ -876,8 +1317,8 @@ namespace GraveBuilder
         {
             Label label = MetaUi.Eyebrow(text);
             label.style.color = AccentLt;
-            label.style.marginTop = first ? 14f : 28f;
-            label.style.marginBottom = 12f;
+            label.style.marginTop = first ? 6f : 16f;
+            label.style.marginBottom = 6f;
             return label;
         }
 
@@ -888,84 +1329,339 @@ namespace GraveBuilder
             scroll.style.flexGrow = 0f;
             scroll.style.flexShrink = 0f;
             scroll.style.maxHeight = maxHeight;
-            scroll.style.marginBottom = 12f;
+            scroll.style.marginBottom = 8f;
             MetaUi.AccentScroll(scroll, new Color(1f, 1f, 1f, 0.06f), MetaUi.Fade(Accent, 0.45f), MetaUi.Fade(Accent, 0.75f));
             scroll.contentContainer.style.paddingRight = 14f;
             return scroll;
         }
 
         // LOAD STRUCTURE: the merged local-exports / game-catalogue list (was the STRUCTURES
-        // panel), LOAD SELECTED + REFRESH LIST.
+        // panel), as a Contracts-style split: the list on the left, a detail pane for whichever
+        // row is selected on the right (preview, description, LOAD SELECTED / DELETE).
         private void BuildLoadStructureSection(VisualElement content)
         {
-            content.Add(SectionHead("LOAD STRUCTURE", first: true));
-            content.Add(BodyText_("Click a structure to select it (double-click loads it straight away). Your own exports (teal) also fill in the EXPORT AS STRUCTURE form below; game structures (grey) reset it. Loading replaces the map and can be undone."));
+            VisualElement body = LibrarySection(content, "LOAD STRUCTURE", first: true,
+                null,
+                out _loadSummary);
+            body.Add(BodyText_("Click a structure to preview it here; double-click loads it straight away, replacing the current map (can be undone). Your own exports (orange) also fill in the EXPORT AS STRUCTURE form below; game structures (grey) reset it."));
+
+            VisualElement split = Row();
+            split.style.alignItems = Align.FlexStart;
+            body.Add(split);
+
+            VisualElement listCol = new VisualElement();
+            listCol.style.width = 460f;
+            listCol.style.flexShrink = 0f;
+            listCol.style.marginRight = 24f;
+            split.Add(listCol);
+
             ScrollView loadScroll = ListScroll(LoadListMaxHeight);
-            content.Add(loadScroll);
+            listCol.Add(loadScroll);
             _loadListHost = loadScroll.contentContainer;
-            content.Add(PairRow(
-                ActionBtn("LOAD SELECTED", LoadSelected),
-                ActionBtn("REFRESH LIST", () =>
+            listCol.Add(CompactActionBtn("REFRESH LIST", () =>
+            {
+                RefreshLoadList();
+                SetStatus($"Found {_loadEntries.Count} loadable structures.");
+            }));
+
+            _loadDetailHost = new VisualElement();
+            _loadDetailHost.style.flexGrow = 1f;
+            _loadDetailHost.style.minWidth = 0f;
+            split.Add(_loadDetailHost);
+            RefreshLoadDetail();
+        }
+
+        // The right-hand pane: a big preview, the name, a short note on what loading it does,
+        // and the actions (LOAD SELECTED always; DELETE only for your own exports) — same
+        // information the Contracts screen gives for its own selected entry. Nothing selected
+        // yet (fresh open, or the list was just refreshed) shows a plain placeholder instead.
+        private void RefreshLoadDetail()
+        {
+            if (_loadDetailHost == null)
+            {
+                return;
+            }
+            _loadDetailHost.Clear();
+            if (_loadSelected < 0 || _loadSelected >= _loadEntries.Count)
+            {
+                VisualElement empty = MetaUi.Panel(Neutral, 15f, dim: true, 12f);
+                empty.style.minHeight = 260f;
+                empty.style.justifyContent = Justify.Center;
+                empty.style.alignItems = Align.Center;
+                empty.Add(BodyText_("Select a structure from the list to preview it here."));
+                _loadDetailHost.Add(empty);
+                return;
+            }
+
+            LoadEntry entry = _loadEntries[_loadSelected];
+            Color family = entry.Local ? Accent : Neutral;
+            VisualElement panel = MetaUi.Panel(family, 15f, dim: true, 14f);
+            _loadDetailHost.Add(panel);
+
+            VisualElement previewRow = Row();
+            previewRow.style.justifyContent = Justify.Center;
+            previewRow.style.marginBottom = 14f;
+            VisualElement preview = EntryPreview(entry, 220f, out int cellCount);
+            previewRow.Add(preview);
+            panel.Add(previewRow);
+
+            panel.Add(MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 22f, MetaUi.TextTone(family), 2f));
+
+            string tag = entry.Local ? "YOUR EXPORT" : "GAME STRUCTURE";
+            Label sub = MetaUi.Text(cellCount > 0 ? $"{tag} · {cellCount} cells" : tag, MetaUi.Face.Body, 14f, DimText, 1.5f);
+            sub.style.marginTop = 4f;
+            sub.style.marginBottom = 14f;
+            panel.Add(sub);
+
+            string desc = entry.Local
+                ? "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT AS STRUCTURE form below, ready to re-export."
+                : "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT AS STRUCTURE form.";
+            Label descLabel = MetaUi.Text(desc, MetaUi.Face.Body, 15f, BodyText, 0.5f, wrap: true);
+            descLabel.style.marginBottom = 18f;
+            panel.Add(descLabel);
+
+            VisualElement actions = Row();
+            actions.style.flexWrap = Wrap.Wrap;
+            actions.style.alignItems = Align.Center;
+            VisualElement loadBtn = CompactActionBtn("LOAD SELECTED", LoadSelected, family: Accent, size: 17f, padX: 36f);
+            loadBtn.style.marginRight = 10f;
+            actions.Add(loadBtn);
+            if (entry.Local)
+            {
+                actions.Add(AttachTooltip(CompactActionBtn("DELETE", () => DeleteLocalStructure(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                    "Delete this export's files (asks first)."));
+            }
+            panel.Add(actions);
+        }
+
+        // LOAD IMAGE: paint a PNG/JPEG onto the map in the five substrate colours. A typed path
+        // like every other input here; the builder has no OS file picker anywhere.
+        private void BuildLoadImageSection(VisualElement content)
+        {
+            VisualElement body = LibrarySection(content, "LOAD IMAGE", first: false,
+                null,
+                out _);
+            body.Add(BodyText_("Turns a PNG or JPEG into a map in the substrate colours: one cell per sampled pixel, transparent pixels become gaps. PALETTE matches each pixel to the nearest substrate colour; LUMINANCE picks it by brightness alone. Loading replaces the map and can be undone, so try the options and compare."));
+
+            VisualElement pathRow = Row();
+            pathRow.style.alignItems = Align.FlexStart;
+            _imagePathField = Field("Image path", _imagePathText, v => _imagePathText = v);
+            _imagePathField.style.flexGrow = 1f;
+            _imagePathField.style.maxWidth = 1000f;
+            _imagePathField.style.marginRight = 16f;
+            AttachTooltip(_imagePathField, "The full path to a .png or .jpg file, e.g. C:\\Pictures\\logo.png. Surrounding quotes (from Copy as path) are fine.");
+            pathRow.Add(_imagePathField);
+            pathRow.Add(AttachTooltip(ChipBtn("BROWSE\u2026", BrowseImage), "Opens a file picker to choose a PNG or JPEG."));
+            body.Add(pathRow);
+
+            _imageSizeField = Field("Max grid size", _imageSizeText, v => _imageSizeText = v);
+            AttachTooltip(_imageSizeField, $"How many cells the image's longer side spans, {MinRadius} to {MaxImageSize}. The other side follows the image's own shape. Bigger keeps more detail but makes a larger map.");
+            _imageAlphaField = Field("Alpha threshold", _imageAlphaText, v => _imageAlphaText = v);
+            AttachTooltip(_imageAlphaField, "0 to 255. Pixels less opaque than this become gaps. 0 keeps every pixel, even fully transparent ones; raise it to trim a soft-edged cutout.");
+            VisualElement numbers = FieldRow(_imageSizeField, _imageAlphaField);
+            numbers.style.maxWidth = 1000f;
+            body.Add(numbers);
+
+            _imageOptionsHost = new VisualElement();
+            body.Add(_imageOptionsHost);
+            RefreshImageOptions();
+
+            body.Add(AttachTooltip(CompactActionBtn("LOAD IMAGE", LoadImage),
+                "Replaces the map with the image and takes you back to it. Can be undone."));
+        }
+
+        // The three settings as the game's own two-way switches (SettingsModal.Switch / OnOff:
+        // a caption, then one control split into two halves with the chosen half filled),
+        // rather than pulsing buttons: pulse means "a tool is active" on the painting view,
+        // not "this option is set". Rebuilt on change. Each on/off only applies in one colour
+        // mode, so the other mode greys it out rather than hiding it, keeping the row still.
+        private void RefreshImageOptions()
+        {
+            if (_imageOptionsHost == null)
+            {
+                return;
+            }
+            _imageOptionsHost.Clear();
+            VisualElement row = Row();
+            row.style.flexWrap = Wrap.Wrap;
+            row.style.alignItems = Align.Center;
+            row.style.marginBottom = 6f;
+            row.Add(SegmentSwitch("COLOURS", "PALETTE", "LUMINANCE", _imageLuminance, SetImageLuminance, enabled: true, 320f,
+                "PALETTE: each pixel becomes the substrate colour nearest its own (blue, pink, gold, purple); dark or greyish pixels become grey. LUMINANCE: hue is ignored; the image's brightness is stretched to its full range and split into five steps, darkest = layer 5 (Purple), lightest = layer 1 (Grey)."));
+            row.Add(SegmentSwitch("DITHER", "OFF", "ON", _imageDither, v => { _imageDither = v; RefreshImageOptions(); }, enabled: !_imageLuminance, 200f,
+                "PALETTE only. When on, each pixel's colour error is spread to its neighbours, so gradients and photos read as a mix of colours instead of flat bands. Off matches each pixel on its own."));
+            row.Add(SegmentSwitch("INVERT", "OFF", "ON", _imageInvert, v => { _imageInvert = v; RefreshImageOptions(); }, enabled: _imageLuminance, 200f,
+                "LUMINANCE only. Flips the brightness steps, so the lightest pixels get the highest layer instead of the darkest."));
+            _imageOptionsHost.Add(row);
+        }
+
+        // SettingsModal.Switch in this screen's accent: caption, then a slab split into two
+        // clickable halves, the chosen one filled. value false = left half, true = right.
+        private VisualElement SegmentSwitch(string caption, string left, string right, bool value, Action<bool> set, bool enabled, float width, string tooltip)
+        {
+            VisualElement group = Row();
+            group.style.alignItems = Align.Center;
+            group.style.marginRight = 34f;
+            group.style.marginBottom = 8f;
+            if (!enabled)
+            {
+                group.style.opacity = 0.4f;
+            }
+            Label cap = MetaUi.Text(caption, MetaUi.Face.Display, 15f, BodyText, 3f);
+            cap.pickingMode = PickingMode.Ignore;
+            cap.style.marginRight = 14f;
+            group.Add(cap);
+
+            VisualElement box = Row();
+            box.style.width = width;
+            box.style.height = 42f;
+            box.style.flexShrink = 0f;
+            box.style.paddingLeft = 5f;
+            box.style.paddingRight = 5f;
+            box.style.paddingTop = 5f;
+            box.style.paddingBottom = 5f;
+            SlabFrame outline = new SlabFrame { Notch = 10f, Stroke = 2f, StrokeColor = MetaUi.Fade(Accent, 0.45f), FillColor = SwitchControl }.Behind(box);
+            box.Add(Half(left, false));
+            box.Add(Half(right, true));
+            if (enabled)
+            {
+                box.RegisterCallback<PointerEnterEvent>(_ => outline.StrokeColor = Accent);
+                box.RegisterCallback<PointerLeaveEvent>(_ => outline.StrokeColor = MetaUi.Fade(Accent, 0.45f));
+            }
+            group.Add(box);
+            return AttachTooltip(group, tooltip);
+
+            VisualElement Half(string text, bool side)
+            {
+                bool chosen = value == side;
+                Button b = new Button { text = "" };
+                b.style.flexGrow = 1f;
+                b.style.flexBasis = 0f;
+                b.style.marginLeft = 0f;
+                b.style.marginRight = 0f;
+                b.style.marginTop = 0f;
+                b.style.marginBottom = 0f;
+                b.style.paddingLeft = 0f;
+                b.style.paddingRight = 0f;
+                b.style.paddingTop = 0f;
+                b.style.paddingBottom = 0f;
+                b.style.borderLeftWidth = 0f;
+                b.style.borderRightWidth = 0f;
+                b.style.borderTopWidth = 0f;
+                b.style.borderBottomWidth = 0f;
+                b.style.backgroundColor = Color.clear;
+                b.style.alignItems = Align.Center;
+                b.style.justifyContent = Justify.Center;
+                b.SetEnabled(enabled);
+                SlabFrame fill = new SlabFrame { Notch = 8f, Stroke = 0f, StrokeColor = Color.clear, FillColor = chosen ? Accent : Color.clear }.Behind(b);
+                if (side)
                 {
-                    RefreshLoadList();
-                    SetStatus($"Found {_loadEntries.Count} loadable structures.");
-                })));
+                    fill.SquareBottomLeft = true;
+                }
+                else
+                {
+                    fill.SquareTopRight = true;
+                }
+                Label word = MetaUi.Text(text, MetaUi.Face.Display, 15f, chosen ? SwitchInk : MetaUi.Fade(Color.white, 0.45f), 3f);
+                word.pickingMode = PickingMode.Ignore;
+                b.Add(word);
+                if (enabled && !chosen)
+                {
+                    b.clicked += () => set(side);
+                }
+                return b;
+            }
+        }
+
+        private void SetImageLuminance(bool luminance)
+        {
+            _imageLuminance = luminance;
+            RefreshImageOptions();
+        }
+
+        // Native Win32 "Open" dialog (see Win32OpenFileDialog) instead of a typed path — this
+        // blocks the game's main thread while it's open, same as any other native modal dialog.
+        private void BrowseImage()
+        {
+            string current = (_imagePathText ?? "").Trim().Trim('"').Trim();
+            string initialDir = current.Length > 0 && File.Exists(current) ? Path.GetDirectoryName(current) : null;
+            string picked = Win32OpenFileDialog.PickImage(initialDir);
+            if (picked == null)
+            {
+                return;
+            }
+            _imagePathText = picked;
+            _imagePathField?.SetValueWithoutNotify(picked);
         }
 
         // LOAD PART: save the clipboard as a named part, and the saved-parts list (was the
         // PARTS panel).
         private void BuildLoadPartSection(VisualElement content)
         {
-            content.Add(SectionHead("LOAD PART", first: false));
-            content.Add(BodyText_("Parts are saved clipboards (COPY/CUT in TOOLS), kept between sessions. Loading one puts it in the clipboard and takes you back to the map, ready to PASTE."));
+            VisualElement body = LibrarySection(content, "LOAD PART", first: false,
+                null,
+                out _partsSummary);
+            body.Add(BodyText_("Saved clipboards (made with COPY/CUT in TOOLS), kept between sessions. Loading one puts it in the clipboard and takes you back to the map, ready to PASTE — or save the current clipboard as a new part below."));
 
-            content.Add(ListHeader("SAVED PARTS", first: true));
+            body.Add(ListHeader("SAVED PARTS", first: true));
             ScrollView partsScroll = ListScroll(PartsListMaxHeight);
-            content.Add(partsScroll);
+            body.Add(partsScroll);
             _partsListHost = partsScroll.contentContainer;
-            content.Add(ActionBtn("REFRESH LIST", () =>
+            body.Add(CompactActionBtn("REFRESH LIST", () =>
             {
                 RefreshPartsList();
                 SetStatus($"Found {_partEntries.Count} saved part{(_partEntries.Count == 1 ? "" : "s")}{(_partsSkipped > 0 ? $" ({_partsSkipped} unreadable file{(_partsSkipped == 1 ? "" : "s")} skipped, see the log)" : "")}.");
             }));
 
-            content.Add(ListHeader("SAVE THE CLIPBOARD AS A PART"));
+            body.Add(ListHeader("SAVE THE CLIPBOARD AS A PART"));
+            // Name and its save button on one line.
+            VisualElement saveRow = Row();
+            saveRow.style.alignItems = Align.FlexStart;
             _partNameField = Field("Part name", _partNameText, v => _partNameText = v);
+            _partNameField.style.flexGrow = 1f;
+            _partNameField.style.maxWidth = 1000f;
+            _partNameField.style.marginRight = 16f;
             AttachTooltip(_partNameField, "Also becomes the file name (lowercased, other characters turned into _). Saving under a name that already exists overwrites that part.");
-            content.Add(_partNameField);
+            saveRow.Add(_partNameField);
             _partSaveHost = new VisualElement();
-            content.Add(_partSaveHost);
+            _partSaveHost.style.flexShrink = 0f;
+            saveRow.Add(_partSaveHost);
+            body.Add(saveRow);
         }
 
         // EXPORT AS STRUCTURE: contract details (with inline validation) + the band editor
         // (was the EXPORT panel).
         private void BuildExportSection(VisualElement content)
         {
-            content.Add(SectionHead("EXPORT AS STRUCTURE", first: false));
-            content.Add(BodyText_("Saves this map as a contract in content/structures/. Press Ctrl+F6 afterwards to load it into the game's Contracts list."));
+            VisualElement body = LibrarySection(content, "EXPORT AS STRUCTURE", first: false,
+                null,
+                out _);
+            body.Add(BodyText_("Saves this map as a contract in content/structures/, live in the game's Contracts list straight away (no RELOAD MODS click needed) — unlike the quick, private test on the MAP panel's SAVE AS SANDBOX OVERRIDE, this publishes a real, selectable contract."));
 
-            content.Add(ListHeader("CONTRACT DETAILS", first: true));
+            body.Add(ListHeader("CONTRACT DETAILS", first: true));
+            // ID and name side by side, each with its hint under it; money on its own line.
             _idField = Field("Contract ID", _idText, v =>
             {
                 _idText = v;
                 RefreshExportHints();
             });
-            _idField.style.maxWidth = 1000f;
             AttachTooltip(_idField,"The contract's internal name, and its file name. Lowercase letters, digits and _ only. Exporting with one of your own export's IDs overwrites it.");
-            content.Add(_idField);
             _idHint = FieldHint();
-            content.Add(_idHint);
+            VisualElement idCol = new VisualElement();
+            idCol.Add(_idField);
+            idCol.Add(_idHint);
 
             _nameField = Field("Display name", _nameText, v =>
             {
                 _nameText = v;
                 RefreshExportHints();
             });
-            _nameField.style.maxWidth = 1000f;
             AttachTooltip(_nameField,"The name shown in the game's Contracts list. Leave it blank to use the ID.");
-            content.Add(_nameField);
             _nameHint = FieldHint();
-            content.Add(_nameHint);
+            VisualElement nameCol = new VisualElement();
+            nameCol.Add(_nameField);
+            nameCol.Add(_nameHint);
+            body.Add(FieldRow(idCol, nameCol));
 
             _moneyField = Field("Starting money", _moneyText, v =>
             {
@@ -974,20 +1670,21 @@ namespace GraveBuilder
             });
             _moneyField.style.maxWidth = 560f;
             AttachTooltip(_moneyField, "How much money the player starts this contract with. A whole number, 0 or more.");
-            content.Add(_moneyField);
+            body.Add(_moneyField);
             _moneyHint = FieldHint();
-            content.Add(_moneyHint);
+            body.Add(_moneyHint);
 
-            content.Add(ListHeader("BANDS"));
-            content.Add(BodyText_("A band is one substrate colour of your map: its tiles are every cell painted that colour. Bands unlock in this order, band 1 first. Hover a field for what it does. Shard and enemy spawn counts are saved with the export, but the framework doesn't apply them in game yet."));
+            body.Add(ListHeader("COLOUR PROGRESSION"));
+            body.Add(BodyText_("One stage per substrate colour — these are the colours you already painted in PALETTE. Each stage's tiles are every cell painted that colour; a colour with nothing painted yet will say so below. Stage 1 unlocks first; each later stage stays sealed until the one before it is cleared. Hover a field for what it does."));
             _bandHost = new VisualElement();
-            content.Add(_bandHost);
-            content.Add(AttachTooltip(CompactActionBtn("ADD BAND", () =>
+            body.Add(_bandHost);
+            body.Add(AttachTooltip(CompactActionBtn("ADD STAGE", () =>
             {
                 _bands.Add(DefaultBand());
                 RebuildBands();
-            }), "Adds another band at the end (it unlocks after all the others)."));
-            content.Add(CompactActionBtn("EXPORT AS STRUCTURE", ExportStructure, size: 18f, padX: 44f));
+            }), "Adds another stage at the end (it unlocks after all the others)."));
+            // Its own line, not beside ADD BAND: it acts on the whole form, not the band list.
+            body.Add(CompactActionBtn("EXPORT AS STRUCTURE", ExportStructure, size: 18f, padX: 44f));
         }
 
         // Feedback line under a form field, lined up with the field's input (Field's label
@@ -997,7 +1694,7 @@ namespace GraveBuilder
             Label hint = MetaUi.Text("", MetaUi.Face.Body, 15f, DimText, 0.5f, wrap: true);
             hint.style.marginLeft = 230f;
             hint.style.marginTop = -4f;
-            hint.style.marginBottom = 12f;
+            hint.style.marginBottom = 6f;
             PadWrappedTracking(hint, 0.5f);
             return hint;
         }
@@ -1266,7 +1963,7 @@ namespace GraveBuilder
             _tooltipText = MetaUi.Text("", MetaUi.Face.Body, 17f, MetaUi.Ink, 0f, wrap: true);
             _tooltip.Add(_tooltipText);
             IgnorePicking(_tooltip);
-            _stage.Add(_tooltip);
+            _tipStage.Add(_tooltip);
             _tooltipOwner = null;
         }
 
@@ -1296,7 +1993,7 @@ namespace GraveBuilder
 
         private void ShowTooltip(VisualElement owner, string text, Vector2 panelPos)
         {
-            if (_tooltip == null || _stage == null)
+            if (_tooltip == null || _tipStage == null)
             {
                 return;
             }
@@ -1312,13 +2009,13 @@ namespace GraveBuilder
         // run off the stage's right / bottom edge, so it stays inside the canvas.
         private void PlaceTooltip(Vector2 panelPos)
         {
-            if (_tooltip == null || _stage == null)
+            if (_tooltip == null || _tipStage == null)
             {
                 return;
             }
-            Vector2 p = _stage.WorldToLocal(panelPos);
-            float w = _stage.contentRect.width;
-            float h = _stage.contentRect.height;
+            Vector2 p = _tipStage.WorldToLocal(panelPos);
+            float w = _tipStage.contentRect.width;
+            float h = _tipStage.contentRect.height;
             float boxH = _tooltip.layout.height > 1f ? _tooltip.layout.height : 60f;
             if (p.x + TooltipOffset + TooltipMaxWidth > w - PanelEdge)
             {
@@ -1400,10 +2097,14 @@ namespace GraveBuilder
         {
             content.Add(Head("MAP", first: true));
             content.Add(ActionBtn("NEW MAP", () => CreateMap(filled: true, DefaultRadius)));
-            content.Add(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride));
+            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Switch to Advanced mode (MODE, bottom bar) to publish a map properly instead."));
+            content.Add(AttachTooltip(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride),
+                "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list."));
             content.Add(PairRow(
-                ActionBtn("LOAD OVERRIDE", LoadOverride),
-                ActionBtn("REMOVE OVERRIDE", RemoveOverride)));
+                AttachTooltip(ActionBtn("LOAD OVERRIDE", LoadOverride),
+                    "Loads the saved override back into this editor, replacing the current map (can be undone)."),
+                AttachTooltip(ActionBtn("REMOVE OVERRIDE", RemoveOverride),
+                    "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged.")));
         }
 
         // Advanced mode: the full builder's painting panels (PALETTE, TOOLS, MAP).
@@ -1430,6 +2131,10 @@ namespace GraveBuilder
                 swatches.Add(ToolHolder(SubstrateKey(l), MetaUi.Key(LayerColourName(l), () => SelectTool(Substrate, l), 120f, c), c, LayerCaption(l)));
             }
             content.Add(swatches);
+            // Always-visible legend, not just the swatches' hover text — confirmed live
+            // (2026-11-24) that a first-time player never thinks to hover these to learn which
+            // colour resists which weapon.
+            content.Add(BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => $"{LayerColourName(l)}: {LayerCaption(l)}"))));
 
             // Palette: special tiles, split into the two groups the game's own tile data
             // distinguishes by "role" (gamedata_tiles.json, verified 2026-11-22): "behavior"
@@ -1471,6 +2176,7 @@ namespace GraveBuilder
         {
             content.Add(Head("TOOLS", first: true));
             BuildBrushControl(content);
+            content.Add(BodyText_("These change how your next paint stroke behaves — hover any button for exactly what it does."));
             // Column: FILL/MIRROR pair, then LINE/CIRCLE pair (RefreshToggles).
             _toggleRow = new VisualElement();
             content.Add(_toggleRow);
@@ -1481,6 +2187,7 @@ namespace GraveBuilder
             // Selection & clipboard (Advanced only: Simple never builds these rows). How each
             // button works is its hover text (RefreshToggles / RefreshClipboardButtons).
             content.Add(SubHead("SELECTION & CLIPBOARD"));
+            content.Add(BodyText_("Select cells, then copy/cut/paste them elsewhere on the map."));
             _selectRow = Row();
             content.Add(_selectRow);
             _loopRow = new VisualElement();
@@ -1498,15 +2205,22 @@ namespace GraveBuilder
                 ActionBtn("NEW (FILLED)", () => NewMap(filled: true)),
                 ActionBtn("NEW (EMPTY)", () => NewMap(filled: false))));
             content.Add(ActionBtn("GROW TO RADIUS", GrowToRadius));
-            content.Add(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride));
+            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use EXPORT AS STRUCTURE (STRUCTURES & PARTS, bottom bar) to publish a map properly instead."));
+            content.Add(AttachTooltip(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride),
+                "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list."));
             content.Add(PairRow(
-                ActionBtn("LOAD OVERRIDE", LoadOverride),
-                ActionBtn("REMOVE OVERRIDE", RemoveOverride)));
+                AttachTooltip(ActionBtn("LOAD OVERRIDE", LoadOverride),
+                    "Loads the saved override back into this editor, replacing the current map (can be undone)."),
+                AttachTooltip(ActionBtn("REMOVE OVERRIDE", RemoveOverride),
+                    "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged.")));
         }
 
         // ---- Simple/Advanced mode -----------------------------------------------------
 
-        private void ToggleMode()
+        // Instant rebuild, no wipe: unlike opening the builder, nothing is revealed/hidden
+        // behind this one (same screen, just a different panel
+        // set) — a transition here was confirmed to just add delay for no visible benefit.
+        private void ToggleModeNow()
         {
             CommitAction();
             _advancedMode = !_advancedMode;
@@ -1724,6 +2438,48 @@ namespace GraveBuilder
                 TerminalUi.Border(tracker, 1f, MetaUi.Fade(Accent, 0.7f));
             }
             VisualElement dragger = slider.Q(null, BaseSlider<int>.draggerUssClassName);
+            if (dragger != null)
+            {
+                dragger.style.position = Position.Absolute;
+                dragger.style.top = 3f;
+                dragger.style.width = 16f;
+                dragger.style.height = 24f;
+                dragger.style.marginTop = 0f;
+                dragger.style.marginLeft = 0f;
+                dragger.style.backgroundColor = AccentLt;
+                TerminalUi.Border(dragger, 2f, Accent);
+                dragger.style.borderTopLeftRadius = 0f;
+                dragger.style.borderTopRightRadius = 0f;
+                dragger.style.borderBottomLeftRadius = 0f;
+                dragger.style.borderBottomRightRadius = 0f;
+            }
+        }
+
+        // Same theme as the SliderInt overload above, for the one float slider (preview ring
+        // size, 0-1) — BaseSlider<float> rather than BaseSlider<int>.
+        private static void StyleSlider(Slider slider)
+        {
+            VisualElement drag = slider.Q(null, BaseSlider<float>.dragContainerUssClassName);
+            if (drag != null)
+            {
+                drag.style.flexGrow = 1f;
+                drag.style.height = 30f;
+                drag.style.marginLeft = 8f;
+                drag.style.marginRight = 8f;
+            }
+            VisualElement tracker = slider.Q(null, BaseSlider<float>.trackerUssClassName);
+            if (tracker != null)
+            {
+                tracker.style.position = Position.Absolute;
+                tracker.style.left = 0f;
+                tracker.style.right = 0f;
+                tracker.style.top = 12f;
+                tracker.style.height = 6f;
+                tracker.style.marginTop = 0f;
+                tracker.style.backgroundColor = Color.Lerp(Accent, Color.black, 0.75f);
+                TerminalUi.Border(tracker, 1f, MetaUi.Fade(Accent, 0.7f));
+            }
+            VisualElement dragger = slider.Q(null, BaseSlider<float>.draggerUssClassName);
             if (dragger != null)
             {
                 dragger.style.position = Position.Absolute;
@@ -2046,8 +2802,10 @@ namespace GraveBuilder
             }
             _historyRow.Clear();
             VisualElement row = PairRow(
-                ActionBtn(_undo.Count > 0 ? $"UNDO ({_undo.Count})" : "UNDO", Undo, enabled: _undo.Count > 0),
-                ActionBtn(_redo.Count > 0 ? $"REDO ({_redo.Count})" : "REDO", Redo, enabled: _redo.Count > 0));
+                AttachTooltip(ActionBtn(_undo.Count > 0 ? $"UNDO ({_undo.Count})" : "UNDO", Undo, enabled: _undo.Count > 0),
+                    "Steps back one action. Shortcut: Ctrl+Z."),
+                AttachTooltip(ActionBtn(_redo.Count > 0 ? $"REDO ({_redo.Count})" : "REDO", Redo, enabled: _redo.Count > 0),
+                    "Re-applies the last undone action. Shortcut: Ctrl+Y or Ctrl+Shift+Z."));
             row.style.flexGrow = 1f;
             _historyRow.Add(row);
         }
@@ -2261,7 +3019,7 @@ namespace GraveBuilder
 
         // ---- selection & clipboard ----------------------------------------------------
         // SELECT is a toggle like FILL MODE/MIRROR; PASTE is a toggle too (it reads CANCEL
-        // PASTE, teal and pulsing, while placement is active). Canvas input precedence is
+        // PASTE, accent-coloured and pulsing, while placement is active). Canvas input precedence is
         // paste placement > LINE/CIRCLE > SELECT > fill > brush (HexCanvas.OnPointerDown).
         //
         // Clipboard anchor: the selection's centre, i.e. the rounded mean of its axial q and r,
@@ -2298,17 +3056,17 @@ namespace GraveBuilder
                 _clipRow.Add(PairRow(
                     AttachTooltip(
                         ActionBtn("COPY", Copy, enabled: any),
-                        "Copies every selected cell to the clipboard, empty ones included (those erase when pasted). The map isn't changed."),
+                        "Copies every selected cell to the clipboard, empty ones included (those erase when pasted). The map isn't changed. Shortcut: Ctrl+C."),
                     AttachTooltip(
                         ActionBtn("CUT", Cut, enabled: any),
-                        "Copies every selected cell to the clipboard, empty ones included, then erases them from the map (one undo step).")));
+                        "Copies every selected cell to the clipboard, empty ones included, then erases them from the map (one undo step). Shortcut: Ctrl+X.")));
                 bool placing = PasteModeActive;
                 string pasteLabel = placing
                     ? "CANCEL PASTE"
                     : (_clipboard.Count > 0 ? $"PASTE ({_clipboard.Count} CELLS)" : "PASTE");
                 _clipRow.Add(AttachTooltip(
                     ActionBtn(pasteLabel, TogglePaste, enabled: placing || _clipboard.Count > 0, family: placing ? Accent : (Color?)null, pulse: placing),
-                    "Each left click on the map stamps the clipboard centred on the cursor (empty cells erase) and stays ready for another. Right-click or CANCEL PASTE stops."));
+                    "Each left click on the map stamps the clipboard centred on the cursor (empty cells erase) and stays ready for another. Right-click or CANCEL PASTE stops. Shortcut: Ctrl+V."));
             }
             // LOAD PART's save button follows the clipboard too (every clipboard change ends here).
             RefreshPartSaveButton();
@@ -3118,6 +3876,349 @@ namespace GraveBuilder
             SetStatus($"Grew the radius from {old} to {radius}; painted cells are unchanged.");
         }
 
+        // ---- image import (LOAD IMAGE) ------------------------------------------------
+        // In-game port of tools/image_to_structure.py (palette mode is the one proven on the
+        // smiley test), with the same tunables. That script stays as-is for exporting
+        // standalone contracts.
+
+        // ReadRadius's idiom for an int field: parse, clamp, write the clamped value back.
+        private bool ReadClampedInt(string what, ref string text, TextField field, int min, int max, out int value)
+        {
+            if (!int.TryParse((text ?? "").Trim(), out value))
+            {
+                SetStatus($"{what} must be a whole number from {min} to {max}.", error: true);
+                return false;
+            }
+            int clamped = Mathf.Clamp(value, min, max);
+            if (clamped != value)
+            {
+                value = clamped;
+                text = value.ToString();
+                field?.SetValueWithoutNotify(text);
+            }
+            return true;
+        }
+
+        private void LoadImage()
+        {
+            if (!ReadClampedInt("Max grid size", ref _imageSizeText, _imageSizeField, MinRadius, MaxImageSize, out int size)
+                || !ReadClampedInt("Alpha threshold", ref _imageAlphaText, _imageAlphaField, 0, 255, out int alphaThreshold))
+            {
+                return;
+            }
+            // Explorer's Copy as path wraps the path in quotes.
+            string path = (_imagePathText ?? "").Trim().Trim('"').Trim();
+            if (path.Length == 0)
+            {
+                SetStatus("Type the path of a PNG or JPEG file first.", error: true);
+                return;
+            }
+            if (!File.Exists(path))
+            {
+                SetStatus($"No file at '{path}'.", error: true);
+                return;
+            }
+            Texture2D tex = null;
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                tex = new Texture2D(2, 2);
+                if (!ImageConversion.LoadImage(tex, bytes))
+                {
+                    SetStatus($"'{Path.GetFileName(path)}' couldn't be read as an image. PNG and JPEG are supported.", error: true);
+                    return;
+                }
+                SandboxMap map = ImageToMap(tex, size, alphaThreshold, _imageLuminance, _imageInvert, _imageDither);
+                if (map == null)
+                {
+                    SetStatus($"'{Path.GetFileName(path)}' produced no cells: every pixel is below the alpha threshold ({alphaThreshold}). Lower it to keep more.", error: true);
+                    return;
+                }
+                ReplaceMap(map, _imageLuminance
+                    ? $"Loaded image (luminance{(_imageInvert ? ", inverted" : "")})"
+                    : $"Loaded image (palette, dither {(_imageDither ? "on" : "off")})");
+                CloseLibrary();
+            }
+            catch (Exception e)
+            {
+                SetStatus($"Loading the image failed: {e.Message}", error: true);
+            }
+            finally
+            {
+                if (tex != null)
+                {
+                    Destroy(tex);
+                }
+            }
+        }
+
+        // Null if every pixel is a hole.
+        private static SandboxMap ImageToMap(Texture2D tex, int size, int alphaThreshold, bool luminance, bool invert, bool dither)
+        {
+            int w = tex.width;
+            int h = tex.height;
+            // A column step is HEX_W wide but a row step only HEX_ROW tall, so a 1:1 pixel
+            // mapping squashes the picture; solve for the grid whose on-screen aspect matches
+            // the image, with the longer side (in hex units) at size.
+            float scale = size / Mathf.Max(w / HexLayout.HEX_W, h / HexLayout.HEX_ROW);
+            int gw = Mathf.Max(1, Mathf.RoundToInt(scale * w / HexLayout.HEX_W));
+            int gh = Mathf.Max(1, Mathf.RoundToInt(scale * h / HexLayout.HEX_ROW));
+
+            // One bilinear tap per cell aliases badly when a big photo shrinks to ~140 cells
+            // (PIL's LANCZOS in the Python tool averages instead), so average up to 4x4 taps
+            // over the cell's footprint. Colour is alpha-weighted so transparent pixels' RGB
+            // (often black) doesn't darken the edges of a cutout.
+            tex.wrapMode = TextureWrapMode.Clamp;
+            int taps = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max((float)w / gw, (float)h / gh)), 1, 4);
+            float[,,] rgb = new float[gh, gw, 3];
+            bool[,] solid = new bool[gh, gw];
+            for (int row = 0; row < gh; row++)
+            {
+                for (int col = 0; col < gw; col++)
+                {
+                    float r = 0f, g = 0f, b = 0f, a = 0f;
+                    for (int ty = 0; ty < taps; ty++)
+                    {
+                        for (int tx = 0; tx < taps; tx++)
+                        {
+                            float u = (col + (tx + 0.5f) / taps) / gw;
+                            // Texture V runs bottom-up; row 0 is the image's top.
+                            float v = 1f - (row + (ty + 0.5f) / taps) / gh;
+                            Color c = tex.GetPixelBilinear(u, v);
+                            r += c.r * c.a;
+                            g += c.g * c.a;
+                            b += c.b * c.a;
+                            a += c.a;
+                        }
+                    }
+                    // Compared on the 0-255 scale like the script's integer alpha, so a
+                    // threshold of 0 keeps even fully transparent pixels.
+                    if (a / (taps * taps) * 255f < alphaThreshold)
+                    {
+                        continue;
+                    }
+                    solid[row, col] = true;
+                    // a is 0 only at threshold 0 on a fully transparent spot: no colour, black.
+                    float inv = a > 0f ? 255f / a : 0f;
+                    rgb[row, col, 0] = r * inv;
+                    rgb[row, col, 1] = g * inv;
+                    rgb[row, col, 2] = b * inv;
+                }
+            }
+
+            // 0 = hole, else 1-5.
+            int[,] layers = luminance
+                ? LuminanceLayers(rgb, solid, gw, gh, invert)
+                : PaletteLayers(rgb, solid, gw, gh, dither);
+
+            List<(Vector2Int cell, byte layer)> placed = new List<(Vector2Int, byte)>();
+            int qMin = int.MaxValue, qMax = int.MinValue, rMin = int.MaxValue, rMax = int.MinValue;
+            for (int row = 0; row < gh; row++)
+            {
+                for (int col = 0; col < gw; col++)
+                {
+                    if (layers[row, col] == 0)
+                    {
+                        continue;
+                    }
+                    Vector2Int axial = HexLayout.OffsetToAxial(col, row);
+                    placed.Add((axial, (byte)layers[row, col]));
+                    qMin = Mathf.Min(qMin, axial.x);
+                    qMax = Mathf.Max(qMax, axial.x);
+                    rMin = Mathf.Min(rMin, axial.y);
+                    rMax = Mathf.Max(rMax, axial.y);
+                }
+            }
+            if (placed.Count == 0)
+            {
+                return null;
+            }
+
+            // Centre near the origin, like a hand-painted map.
+            int qMid = Mathf.RoundToInt((qMin + qMax) / 2f);
+            int rMid = Mathf.RoundToInt((rMin + rMax) / 2f);
+            SandboxMap map = new SandboxMap();
+            int reach = 0;
+            foreach ((Vector2Int cell, byte layer) in placed)
+            {
+                Vector2Int k = new Vector2Int(cell.x - qMid, cell.y - rMid);
+                // tile left null: plain substrate.
+                map.cells[k] = new SandboxMap.Cell { layer = layer };
+                reach = Mathf.Max(reach, HexLayout.Distance(0, 0, k.x, k.y));
+            }
+            map.radius = Mathf.Clamp(reach, MinRadius, MaxRadius);
+            return map;
+        }
+
+        // Nearest substrate colour per pixel, optionally Floyd-Steinberg dithered over the
+        // float buffer (modified in place), in reading order.
+        private static int[,] PaletteLayers(float[,,] rgb, bool[,] solid, int gw, int gh, bool dither)
+        {
+            // Live, not copied: the Python tool's hardcoded Pink went stale once the recolour
+            // patch was dropped. Index = layer; Black (1) is gated separately.
+            Color[] palette = { Color.black, Color.black, ColourTokens.BlueColor, ColourTokens.PinkColor, ColourTokens.GoldColor, ColourTokens.PurpleColor };
+            int[,] layers = new int[gh, gw];
+            for (int row = 0; row < gh; row++)
+            {
+                for (int col = 0; col < gw; col++)
+                {
+                    if (!solid[row, col])
+                    {
+                        continue;
+                    }
+                    float pr = Mathf.Clamp(Mathf.Round(rgb[row, col, 0]), 0f, 255f);
+                    float pg = Mathf.Clamp(Mathf.Round(rgb[row, col, 1]), 0f, 255f);
+                    float pb = Mathf.Clamp(Mathf.Round(rgb[row, col, 2]), 0f, 255f);
+                    int layer = ClassifyImagePixel(pr, pg, pb, palette);
+                    layers[row, col] = layer;
+
+                    // A Black-gated pixel has no meaningful hue error to spread.
+                    if (!dither || layer == 1)
+                    {
+                        continue;
+                    }
+                    Color target = palette[layer];
+                    float er = rgb[row, col, 0] - target.r * 255f;
+                    float eg = rgb[row, col, 1] - target.g * 255f;
+                    float eb = rgb[row, col, 2] - target.b * 255f;
+                    Diffuse(col + 1, row, 7f / 16f);
+                    Diffuse(col - 1, row + 1, 3f / 16f);
+                    Diffuse(col, row + 1, 5f / 16f);
+                    Diffuse(col + 1, row + 1, 1f / 16f);
+
+                    void Diffuse(int c, int rr, float weight)
+                    {
+                        if (c < 0 || c >= gw || rr >= gh || !solid[rr, c])
+                        {
+                            return;
+                        }
+                        // Clamped: with only five colours and wide gaps between them (no
+                        // green, cyan or true red), unbounded error let a run of far-off
+                        // pixels tip into a worse colour than plain nearest-match (a cyan
+                        // stretch went Pink instead of Blue on the hue-wheel test).
+                        rgb[rr, c, 0] = Mathf.Clamp(rgb[rr, c, 0] + er * weight, 0f, 255f);
+                        rgb[rr, c, 1] = Mathf.Clamp(rgb[rr, c, 1] + eg * weight, 0f, 255f);
+                        rgb[rr, c, 2] = Mathf.Clamp(rgb[rr, c, 2] + eb * weight, 0f, 255f);
+                    }
+                }
+            }
+            return layers;
+        }
+
+        // Brightness only, hue ignored: darker = higher layer. The tonal range is stretched
+        // first (PIL's ImageOps.autocontrast(cutoff=1) over solid pixels only, as the script
+        // does), since a flat or low-contrast source otherwise collapses into one or two of
+        // the five steps; holes are left out so a transparent background can't skew it.
+        private static int[,] LuminanceLayers(float[,,] rgb, bool[,] solid, int gw, int gh, bool invert)
+        {
+            // PIL's "L" conversion weights, rounded to its integer grey.
+            int[,] grey = new int[gh, gw];
+            int[] hist = new int[256];
+            int n = 0;
+            for (int row = 0; row < gh; row++)
+            {
+                for (int col = 0; col < gw; col++)
+                {
+                    if (!solid[row, col])
+                    {
+                        continue;
+                    }
+                    float l = rgb[row, col, 0] * 0.299f + rgb[row, col, 1] * 0.587f + rgb[row, col, 2] * 0.114f;
+                    int gv = Mathf.Clamp(Mathf.RoundToInt(l), 0, 255);
+                    grey[row, col] = gv;
+                    hist[gv]++;
+                    n++;
+                }
+            }
+
+            // Trim 1% of the pixels off each end of the histogram, then stretch what's left.
+            int cut = n / 100;
+            for (int lo = 0; lo < 256 && cut > 0; lo++)
+            {
+                int take = Mathf.Min(cut, hist[lo]);
+                hist[lo] -= take;
+                cut -= take;
+            }
+            cut = n / 100;
+            for (int hi = 255; hi >= 0 && cut > 0; hi--)
+            {
+                int take = Mathf.Min(cut, hist[hi]);
+                hist[hi] -= take;
+                cut -= take;
+            }
+            int min = 0;
+            while (min < 255 && hist[min] == 0)
+            {
+                min++;
+            }
+            int max = 255;
+            while (max > 0 && hist[max] == 0)
+            {
+                max--;
+            }
+            // A single-tone image has nothing to stretch; leave it as it is.
+            bool stretch = max > min;
+            float stretchScale = stretch ? 255f / (max - min) : 1f;
+
+            int[,] layers = new int[gh, gw];
+            for (int row = 0; row < gh; row++)
+            {
+                for (int col = 0; col < gw; col++)
+                {
+                    if (!solid[row, col])
+                    {
+                        continue;
+                    }
+                    int gv = grey[row, col];
+                    if (stretch)
+                    {
+                        gv = Mathf.Clamp((int)((gv - min) * stretchScale), 0, 255);
+                    }
+                    float lum = gv / 255f;
+                    if (invert)
+                    {
+                        lum = 1f - lum;
+                    }
+                    layers[row, col] = Mathf.Clamp(Mathf.RoundToInt(1f + (1f - lum) * 4f), 1, 5);
+                }
+            }
+            return layers;
+        }
+
+        // Black is a value/saturation gate, not a palette entry in the nearest search: a grey
+        // pixel has no real hue and reads as "nearest" to an arbitrary hue colour otherwise
+        // (it turned the smiley test's solid dark face into coloured noise).
+        private static int ClassifyImagePixel(float r, float g, float b, Color[] palette)
+        {
+            Color.RGBToHSV(new Color(r / 255f, g / 255f, b / 255f), out _, out float s, out float v);
+            if (v < 0.18f || s < 0.15f)
+            {
+                return 1;
+            }
+            int best = 2;
+            float bestDist = float.MaxValue;
+            for (int layer = 2; layer <= 5; layer++)
+            {
+                Color t = palette[layer];
+                float d = RedmeanDistSq(r, g, b, t.r * 255f, t.g * 255f, t.b * 255f);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = layer;
+                }
+            }
+            return best;
+        }
+
+        // "Redmean" weighted RGB distance: a cheap perceptual approximation that weights red
+        // and blue by how red the pair is, unlike plain Euclidean RGB.
+        private static float RedmeanDistSq(float r1, float g1, float b1, float r2, float g2, float b2)
+        {
+            float rmean = (r1 + r2) / 2f;
+            float dr = r1 - r2, dg = g1 - g2, db = b1 - b2;
+            return (2f + rmean / 256f) * dr * dr + 4f * dg * dg + (2f + (255f - rmean) / 256f) * db * db;
+        }
+
         private void SaveOverride()
         {
             if (_map.cells.Count == 0)
@@ -3280,6 +4381,7 @@ namespace GraveBuilder
 
             _loadSelected = -1;
             RebuildLoadList();
+            RefreshLoadDetail();
             // The export form's ID hint checks against this list (overwrite / game-ID clash).
             RefreshExportHints();
         }
@@ -3294,6 +4396,11 @@ namespace GraveBuilder
             _loadHolders.Clear();
             _loadRowPaint.Clear();
             _loadHover = -1;
+            if (_loadSummary != null)
+            {
+                int mine = _loadEntries.Count(e => e.Local);
+                _loadSummary.text = $"{mine} YOURS · {_loadEntries.Count - mine} GAME";
+            }
             // Your exports first, then the game's catalogue (RefreshLoadList's order), each
             // under its own eyebrow like the Contracts list's IN PROGRESS / ALL CONTRACTS.
             bool anyLocal = _loadEntries.Any(e => e.Local);
@@ -3323,48 +4430,213 @@ namespace GraveBuilder
             PaintLoadRows();
         }
 
-        // One load-list row, as a Contracts-list row: a slab (teal for your exports, grey for
+        // One load-list row, as a Contracts-list row: a slab (orange for your exports, grey for
         // game structures) with the name, a short tag on the right and, for your own exports
         // only, a delete key (game structures aren't files this mod manages). Click selects,
         // double-click loads.
+        // ---- load-list thumbnails --------------------------------------------------------
+        // The Contracts list's hex silhouette per row. Game structures go through the game's
+        // own StructureSilhouette.ThumbLazy (what ModeSelectController.StructureThumb uses:
+        // bakes one texture per frame, cached by id). Our exports can't: that cache is keyed by
+        // id and never invalidated, so re-exporting a map would keep showing its old shape.
+        // They get the same rendering (StructureSilhouette.Of's maths and LayerColour) into a
+        // cache of our own keyed by the cells file's path and write time.
+
+        // Fits inside the compact row (LoadRow) without making it taller.
+        private const float LoadThumbSize = 34f;
+
+        private static readonly Dictionary<string, (DateTime stamp, Texture2D tex, int count)> _localThumbs = new Dictionary<string, (DateTime, Texture2D, int)>(StringComparer.OrdinalIgnoreCase);
+
+        // A fixed-size slot either way, so names line up whether or not a thumbnail exists.
+        private static VisualElement LoadThumb(LoadEntry entry)
+        {
+            VisualElement slot = EntryPreview(entry, LoadThumbSize, out _);
+            slot.style.marginRight = 14f;
+            return slot;
+        }
+
+        // Same rendering as LoadThumb, parameterised by size so the load-list row (small) and
+        // the detail pane (big) share one path. cellCount comes along for free: local entries
+        // only know their own cell count by parsing the same cells file this renders from.
+        private static VisualElement EntryPreview(LoadEntry entry, float size, out int cellCount)
+        {
+            cellCount = !entry.Local && entry.Def != null ? entry.Def.cellCount : 0;
+            VisualElement slot = new VisualElement { pickingMode = PickingMode.Ignore };
+            slot.style.width = size;
+            slot.style.height = size;
+            slot.style.flexShrink = 0f;
+            VisualElement thumb = null;
+            try
+            {
+                if (entry.Local)
+                {
+                    Texture2D tex = LocalThumbTexture(entry.DefPath, out cellCount);
+                    if (tex != null)
+                    {
+                        thumb = new VisualElement { pickingMode = PickingMode.Ignore };
+                        thumb.style.flexGrow = 1f;
+                        thumb.style.backgroundImage = new StyleBackground(tex);
+                        thumb.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Contain);
+                        thumb.style.backgroundRepeat = new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
+                        thumb.style.backgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Center);
+                        thumb.style.backgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Center);
+                    }
+                }
+                else if (entry.Def != null)
+                {
+                    thumb = StructureSilhouette.ThumbLazy(entry.Def, size);
+                }
+            }
+            catch (Exception e)
+            {
+                // A thumbnail is decoration; never let one break the list.
+                Plugin.Log.LogWarning($"MapBuilder: no thumbnail for '{entry.Label}': {e.Message}");
+            }
+            if (thumb != null)
+            {
+                slot.Add(thumb);
+            }
+            return slot;
+        }
+
+        private static Texture2D LocalThumbTexture(string defPath, out int cellCount)
+        {
+            cellCount = 0;
+            JObject def = JObject.Parse(File.ReadAllText(defPath));
+            string cellsFile = (string)def["cells_file"];
+            if (string.IsNullOrEmpty(cellsFile))
+            {
+                return null;
+            }
+            string cellsPath = Path.Combine(Path.GetDirectoryName(defPath), cellsFile);
+            if (!File.Exists(cellsPath))
+            {
+                return null;
+            }
+            DateTime stamp = File.GetLastWriteTimeUtc(cellsPath);
+            if (_localThumbs.TryGetValue(cellsPath, out (DateTime stamp, Texture2D tex, int count) cached))
+            {
+                if (cached.stamp == stamp && cached.tex != null)
+                {
+                    cellCount = cached.count;
+                    return cached.tex;
+                }
+                if (cached.tex != null)
+                {
+                    UnityEngine.Object.Destroy(cached.tex);
+                }
+                _localThumbs.Remove(cellsPath);
+            }
+            MegastructureData data = MegastructureData.FromJson(File.ReadAllText(cellsPath));
+            Texture2D tex = RenderSilhouette(data);
+            cellCount = data?.count ?? 0;
+            if (tex != null)
+            {
+                _localThumbs[cellsPath] = (stamp, tex, cellCount);
+            }
+            return tex;
+        }
+
+        // StructureSilhouette.Of's rendering, minus its id cache: each cell is a 2x2 block of its
+        // layer's LayerColour at its axial-to-pixel position, y flipped (texture rows run
+        // bottom-up) so the thumbnail matches the game's own orientation.
+        private static Texture2D RenderSilhouette(MegastructureData d)
+        {
+            if (d == null || d.count == 0)
+            {
+                return null;
+            }
+            float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
+            for (int i = 0; i < d.count; i++)
+            {
+                float x = Mathf.Sqrt(3f) * (d.q[i] + d.r[i] / 2f);
+                float y = 1.5f * d.r[i];
+                xMin = Mathf.Min(xMin, x);
+                xMax = Mathf.Max(xMax, x);
+                yMin = Mathf.Min(yMin, y);
+                yMax = Mathf.Max(yMax, y);
+            }
+            float s = 2f / Mathf.Sqrt(3f);
+            int w = Mathf.CeilToInt((xMax - xMin) * s) + 4;
+            int h = Mathf.CeilToInt((yMax - yMin) * s) + 4;
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, mipChain: false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color32[] px = new Color32[w * h];
+            for (int i = 0; i < d.count; i++)
+            {
+                Color32 c = StructureSilhouette.LayerColour(d.layer[i]);
+                float x = Mathf.Sqrt(3f) * (d.q[i] + d.r[i] / 2f);
+                int bx = Mathf.RoundToInt((x - xMin) * s) + 1;
+                int by = h - 2 - Mathf.RoundToInt((1.5f * d.r[i] - yMin) * s);
+                for (int dy = 0; dy < 2; dy++)
+                {
+                    for (int dx = 0; dx < 2; dx++)
+                    {
+                        int tx = bx + dx;
+                        int ty = by - dy;
+                        if (tx >= 0 && tx < w && ty >= 0 && ty < h)
+                        {
+                            px[ty * w + tx] = c;
+                        }
+                    }
+                }
+            }
+            tex.SetPixels32(px);
+            tex.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+            return tex;
+        }
+
         private VisualElement LoadRow(int index, LoadEntry entry)
         {
             Color family = entry.Local ? Accent : Neutral;
             VisualElement row = new VisualElement { name = "map-builder-load-row" };
             row.style.flexDirection = FlexDirection.Row;
             row.style.alignItems = Align.Center;
-            row.style.paddingLeft = 22f;
-            row.style.paddingRight = entry.Local ? 12f : 22f;
-            row.style.paddingTop = entry.Local ? 10f : 16f;
-            row.style.paddingBottom = entry.Local ? 10f : 16f;
-            row.style.marginBottom = 10f;
-            SlabFrame frame = MetaUi.Slab(row, family, dim: false, 13f);
+            row.style.paddingLeft = 18f;
+            row.style.paddingRight = 18f;
+            row.style.paddingTop = 9f;
+            row.style.paddingBottom = 9f;
+            // 8 apart (AddRow uses 16 at twice the height) so each chamfered outline reads as
+            // its own box, as on the Contracts list.
+            row.style.marginBottom = 8f;
+            SlabFrame frame = MetaUi.Slab(row, family, dim: false, 12f);
 
-            Label name = MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 21f, MetaUi.TextTone(family), 2f);
+            row.Add(LoadThumb(entry));
+
+            Label name = MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 17f, MetaUi.TextTone(family), 1.5f);
             name.pickingMode = PickingMode.Ignore;
             name.style.flexGrow = 1f;
             name.style.flexShrink = 1f;
+            // minWidth: 0 for the same reason as the band field labels (CompactField) — a flex
+            // child's default min-width is its own unwrapped content width, so without this the
+            // box never actually shrinks below the full name and textOverflow never engages.
+            // Confirmed live (2026-11-24): long names ("Modded Dreadnought") were hard-clipping
+            // mid-word ("MODDED DREADNOI") in the narrower post-split list column — ellipsis
+            // reads as a deliberate truncation instead of a typo.
+            name.style.minWidth = 0f;
+            name.style.whiteSpace = WhiteSpace.NoWrap;
             name.style.overflow = Overflow.Hidden;
+            name.style.textOverflow = TextOverflow.Ellipsis;
             row.Add(name);
 
-            string tag = entry.Local
-                ? "YOUR EXPORT"
-                : (entry.Def != null && entry.Def.cellCount > 0 ? $"{entry.Def.cellCount} CELLS" : "GAME");
-            Label tagLabel = MetaUi.Text(tag, MetaUi.Face.Body, 15f, DimText, 2f);
+            // A cell count reads as AddRow's right-hand stat (Display face, MetaUi.Green); the
+            // word tags stay quiet.
+            bool hasCount = !entry.Local && entry.Def != null && entry.Def.cellCount > 0;
+            string tag = entry.Local ? "YOUR EXPORT" : (hasCount ? $"{entry.Def.cellCount} CELLS" : "GAME");
+            Label tagLabel = hasCount
+                ? MetaUi.Text(tag, MetaUi.Face.Display, 17f, MetaUi.Green, 1.5f)
+                : MetaUi.Text(tag, MetaUi.Face.Body, 13f, DimText, 1.5f);
             tagLabel.pickingMode = PickingMode.Ignore;
             tagLabel.style.flexShrink = 0f;
             tagLabel.style.marginLeft = 16f;
             row.Add(tagLabel);
 
-            if (entry.Local)
-            {
-                VisualElement del = MetaUi.Key("×", () => DeleteLocalStructure(entry), 54f, MetaUi.Crimson);
-                del.style.flexShrink = 0f;
-                del.style.marginLeft = 14f;
-                // The × is inside the row: don't let its click also select/load the row.
-                del.RegisterCallback<ClickEvent>(e => e.StopPropagation());
-                row.Add(AttachTooltip(del, "Delete this export's files (asks first)."));
-            }
+            // Deleting a local export is an action on the selected structure, not the row
+            // itself now — it lives in the detail pane's DELETE button (RefreshLoadDetail).
 
             row.RegisterCallback<ClickEvent>(e =>
             {
@@ -3389,7 +4661,9 @@ namespace GraveBuilder
             });
             MetaUi.Lift(row, slide: true);
             _loadRowPaint.Add((frame, name, family));
-            return row;
+            // The name label can still ellipsis-truncate a long one; the full name is always
+            // one hover away rather than just unreadable.
+            return AttachTooltip(row, entry.Label);
         }
 
         // Hover/selection look, as ModeSelectController.PaintRows: the selected row's slab at
@@ -3411,8 +4685,8 @@ namespace GraveBuilder
         {
             _loadSelected = index;
             PaintLoadRows();
-            LoadEntry e = _loadEntries[index];
-            SetStatus($"Selected '{e.Label}' ({(e.Local ? "your export" : "game structure")}). Press LOAD SELECTED to load it.");
+            RefreshLoadDetail();
+            SetStatus($"Selected '{_loadEntries[index].Label}'.");
         }
 
         private void LoadSelected()
@@ -3478,7 +4752,7 @@ namespace GraveBuilder
                 _bands.Add(DefaultBand());
             }
             RebuildBands();
-            SetStatus($"Loaded '{entry.Label}': {_map.cells.Count} cells; the export form now targets '{id}' ({_bands.Count} band{(_bands.Count == 1 ? "" : "s")}).");
+            SetStatus($"Loaded '{entry.Label}': {_map.cells.Count} cells; the export form now targets '{id}' ({_bands.Count} stage{(_bands.Count == 1 ? "" : "s")}).");
             return true;
         }
 
@@ -3500,7 +4774,7 @@ namespace GraveBuilder
             return true;
         }
 
-        // Delete one of our own exports (teal entries only; RebuildLoadList never offers it for
+        // Delete one of our own exports (orange entries only; RebuildLoadList never offers it for
         // a game structure). Asks first with the game's own TerminalUi.Confirm modal, added to
         // this screen's root so it covers the whole map builder; the canvas and panels can't
         // be clicked until it's answered (KEEP GOING just closes it).
@@ -3520,10 +4794,10 @@ namespace GraveBuilder
         // Removes <id>.json and its cells file from StructuresDir() (the folder ExportStructure
         // writes, and RefreshLoadList read entry.DefPath from), then rescans the list.
         //
-        // Already-injected copies: the framework's Ctrl+F6 (StructuresInjectPatch.Reload ->
+        // Already-injected copies: the framework's RELOAD MODS (StructuresInjectPatch.Reload ->
         // InjectedTracker.Reload) first strips every id it injected last pass out of
         // StructureCatalog.campaign and its id cache, then rescans the folders, so a deleted
-        // file is gone from the Contracts list after the next Ctrl+F6, not before (verified
+        // file is gone from the Contracts list after the next RELOAD MODS, not before (verified
         // 2026-11-22 against StructuresInjectPatch.cs / ContentInjector.cs). Until then the
         // live catalogue still holds it, so it's remembered in _deletedInjected to keep it out
         // of this list. (Hides it by object reference; the only way that could also hide a game
@@ -3580,7 +4854,7 @@ namespace GraveBuilder
                     removed.Add(cellsFile);
                 }
 
-                // Any live catalogue copy (injected at boot or by an earlier Ctrl+F6).
+                // Any live catalogue copy (injected at boot or by an earlier RELOAD MODS).
                 bool inGame = false;
                 StructureCatalog cat = StructureCatalog.I;
                 if (cat != null && !string.IsNullOrEmpty(id))
@@ -3606,7 +4880,7 @@ namespace GraveBuilder
                 RefreshLoadList();
                 string files = removed.Count > 0 ? string.Join(" + ", removed) : "no files were left to remove";
                 SetStatus(inGame
-                    ? $"Deleted structure '{entry.Label}' ({files}). It's still in the game's Contracts list this session: press Ctrl+F6 to remove it there too. The map here is unchanged."
+                    ? $"Deleted structure '{entry.Label}' ({files}). It's still in the game's Contracts list this session: click RELOAD MODS on the Contracts page to remove it there too. The map here is unchanged."
                     : $"Deleted structure '{entry.Label}' ({files}). The map here is unchanged.");
             }
             catch (Exception e)
@@ -3678,8 +4952,8 @@ namespace GraveBuilder
         private VisualElement BandRow(int index, Dictionary<int, int> counts)
         {
             string[] values = _bands[index];
-            VisualElement panel = MetaUi.Panel(Accent, 15f, dim: true, 18f);
-            panel.style.marginBottom = 14f;
+            VisualElement panel = MetaUi.Panel(Accent, 15f, dim: true, 12f);
+            panel.style.marginBottom = 10f;
 
             // Title.
             VisualElement title = Row();
@@ -3688,8 +4962,8 @@ namespace GraveBuilder
             title.style.marginBottom = 4f;
             VisualElement titleText = Row();
             titleText.style.alignItems = Align.Center;
-            titleText.Add(MetaUi.Text($"BAND {index + 1}", MetaUi.Face.DisplayBold, 20f, AccentLt, 3f));
-            Label order = MetaUi.Text(index == 0 ? "UNLOCKS FIRST" : $"UNLOCKS AFTER BAND {index}", MetaUi.Face.Body, 14f, DimText, 2f);
+            titleText.Add(MetaUi.Text($"STAGE {index + 1}", MetaUi.Face.DisplayBold, 20f, AccentLt, 3f));
+            Label order = MetaUi.Text(index == 0 ? "UNLOCKS FIRST" : $"UNLOCKS AFTER STAGE {index}", MetaUi.Face.Body, 14f, DimText, 2f);
             order.style.marginLeft = 16f;
             titleText.Add(order);
             title.Add(titleText);
@@ -3697,14 +4971,13 @@ namespace GraveBuilder
             {
                 if (index < _bands.Count)
                 {
-                    _bandCosmeticShown.Remove(_bands[index]);
                     _bands.RemoveAt(index);
                 }
                 RebuildBands();
                 SetStatus(_bands.Count == 0
-                    ? "Removed the last band; export needs at least one (ADD BAND)."
-                    : $"Removed band {index + 1}.");
-            }, 54f, MetaUi.Crimson), "Remove this band. The bands after it move up one place in the unlock order."));
+                    ? "Removed the last stage; export needs at least one (ADD STAGE)."
+                    : $"Removed stage {index + 1}.");
+            }, 54f, MetaUi.Crimson), "Remove this stage. The stages after it move up one place in the unlock order."));
             panel.Add(title);
 
             // Substrate colour.
@@ -3726,9 +4999,16 @@ namespace GraveBuilder
                 swatches.Add(SwatchHolder(key, c, l == layer));
             }
             panel.Add(swatches);
+            // Same always-visible weapon legend as the PALETTE panel (LayerCaption) — this is
+            // the one other place a player picks a substrate colour, and it had no explanation
+            // at all before, not even a tooltip.
+            Label legend = BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => $"{LayerColourName(l)}: {LayerCaption(l)}")));
+            legend.style.marginBottom = 4f;
+            panel.Add(legend);
             BandColourNote(panel, index, layer, values[BandLayer], counts);
 
-            // Tile health, shard spawns, enemy spawns.
+            // Tile health: the only other field the framework actually reads today, so it
+            // stays visible alongside the colour (everything else below is folded away).
             VisualElement groups = Row();
             groups.style.flexWrap = Wrap.Wrap;
             groups.style.alignItems = Align.FlexStart;
@@ -3738,54 +5018,17 @@ namespace GraveBuilder
             VisualElement health = BandGroup(groups, "TILE HEALTH", BandFields[BandHpSealed].Tooltip);
             health.Add(CompactField(values, BandHpSealed, null, 190f));
 
-            VisualElement shards = BandGroup(groups, "SHARD SPAWNS", "Shard pickups (the currency used to research Mods) seeded into this band's tiles, per shard type. Saved with the export, not yet applied in game by the framework.");
-            VisualElement shardRow = Row();
-            for (int f = BandShardsFrom; f <= BandShardsTo; f++)
-            {
-                shardRow.Add(CompactField(values, f, MarkerColour(BandFields[f].Key)));
-            }
-            shards.Add(shardRow);
-
-            VisualElement enemies = BandGroup(groups, "ENEMY SPAWNS", "Hidden enemy encounters seeded into this band's tiles, per enemy type. Saved with the export, not yet applied in game by the framework.");
-            VisualElement enemyRow = Row();
-            for (int f = BandEnemiesFrom; f <= BandEnemiesTo; f++)
-            {
-                enemyRow.Add(CompactField(values, f, MarkerColour(BandFields[f].Key)));
-            }
-            enemies.Add(enemyRow);
-
-            // Cosmetic (folded by default).
-            // Forced open while either value wouldn't export, so its error is never hidden.
-            bool cosmeticBad = !BandValueValid(BandFields[BandOuterFrac], values[BandOuterFrac])
-                || !BandValueValid(BandFields[BandUnsealedLook], values[BandUnsealedLook]);
-            bool shown = cosmeticBad || _bandCosmeticShown.Contains(values);
-            VisualElement cosmeticBar = Row();
-            cosmeticBar.style.alignItems = Align.Center;
-            cosmeticBar.style.marginTop = 6f;
-            cosmeticBar.Add(AttachTooltip(MetaUi.Key(shown ? "HIDE COSMETIC OPTIONS" : "COSMETIC OPTIONS", () =>
-            {
-                if (!_bandCosmeticShown.Remove(values))
-                {
-                    _bandCosmeticShown.Add(values);
-                }
-                RebuildBands();
-            }, 340f, Neutral), "Options that only change how the structure looks, with no effect on gameplay."));
-            if (!shown)
-            {
-                Label summary = MetaUi.Text($"Preview ring {values[BandOuterFrac]} · core look {(values[BandUnsealedLook] == "0" ? "as painted" : values[BandUnsealedLook])} (no gameplay effect)", MetaUi.Face.Body, 15f, DimText, 0.5f);
-                summary.style.marginLeft = 16f;
-                cosmeticBar.Add(summary);
-            }
-            panel.Add(cosmeticBar);
-            if (shown)
-            {
-                VisualElement cosmetic = Row();
-                cosmetic.style.flexWrap = Wrap.Wrap;
-                cosmetic.style.marginTop = 8f;
-                cosmetic.Add(CompactField(values, BandOuterFrac, null, 230f));
-                cosmetic.Add(CompactField(values, BandUnsealedLook, null, 230f));
-                panel.Add(cosmetic);
-            }
+            // Shard/enemy counts, preview ring size and core look all got a UI pass this session
+            // (steppers, a live preview) but stayed ~100% inert: BuildFromJson still only reads
+            // layer, outer_frac and hp_sealed, and even outer_frac only ever shows up on a tiny
+            // Contracts-list icon. The user's own call (2026-11-24): showing controls for
+            // something that does nothing is just clutter, not "transparency" — removed entirely
+            // rather than folded away. values[] still carries whatever these fields were last
+            // set to (DefaultBand()'s defaults for a new stage, or whatever an older export/load
+            // already had) and BandsToJson still writes them, so re-exporting an existing
+            // structure round-trips them unchanged — there's just no UI to edit them until a
+            // future update actually reads them. See StepperField/PreviewRingField/
+            // CoreLookField/BuildAppearancePreview in git history if this needs reviving.
             return panel;
         }
 
@@ -3849,12 +5092,12 @@ namespace GraveBuilder
                 int n = counts.TryGetValue(layer, out int c) ? c : 0;
                 if (earlier >= 0)
                 {
-                    text = $"Band {earlier + 1} already uses {name}, so this band gets no tiles (the first band with a colour takes them all).";
+                    text = $"Stage {earlier + 1} already uses {name}, so this stage gets no tiles (the first stage with a colour takes them all).";
                     colour = WarnText;
                 }
                 else if (n == 0)
                 {
-                    text = $"No cells on this map are painted {name}, so this band has no tiles yet.";
+                    text = $"No cells on this map are painted {name}, so this stage has no tiles yet.";
                     colour = WarnText;
                 }
                 else
@@ -3894,7 +5137,12 @@ namespace GraveBuilder
                 TerminalUi.Border(sw, 1f, MetaUi.Fade(MetaUi.Ink, 0.35f));
                 labelRow.Add(sw);
             }
-            Label label = MetaUi.Text(spec.Label.ToUpperInvariant(), MetaUi.Face.Body, 13f, BodyText, 1f, wrap: true);
+            // tracking: 0, not the usual letter-spaced caps style, because MetaUi.Text's
+            // trailing-letterSpacing compensation is skipped under wrap: true (see
+            // PadWrappedTracking's comment) and 1 unit of compensation wasn't enough slack —
+            // these short all-caps words (EXPLOSIVE, LIGHTNING, VOID, SWARM) still lost their
+            // last glyph. No letter-spacing at all sidesteps the bug rather than re-tuning it.
+            Label label = MetaUi.Text(spec.Label.ToUpperInvariant(), MetaUi.Face.Body, 13f, BodyText, 0f, wrap: true);
             label.style.flexShrink = 1f;
             // Flexbox gotcha: a flex child's default min-width is its own unwrapped content
             // width ("min-width: auto"), so whiteSpace:Normal alone still doesn't let it wrap
@@ -3902,7 +5150,6 @@ namespace GraveBuilder
             // box it's actually given, and the render just clips mid-word. Explicit 0 is needed
             // for wrap to actually take effect.
             label.style.minWidth = 0f;
-            PadWrappedTracking(label, 1f);
             labelRow.Add(label);
             cell.Add(labelRow);
 
@@ -3973,7 +5220,7 @@ namespace GraveBuilder
                     string raw = (_bands[i][f] ?? "").Trim();
                     if (!BandValueValid(spec, raw))
                     {
-                        error = $"Band {i + 1}: {spec.Label} must be {BandValueRule(spec)}.";
+                        error = $"Stage {i + 1}: {spec.Label} must be {BandValueRule(spec)}.";
                         return null;
                     }
                     if (spec.IsFloat)
@@ -4024,7 +5271,7 @@ namespace GraveBuilder
             }
             if (_bands.Count == 0)
             {
-                SetStatus("Add at least one band before exporting.", error: true);
+                SetStatus("Add at least one stage before exporting.", error: true);
                 return;
             }
             JArray bands = BandsToJson(out string bandError);
@@ -4059,8 +5306,23 @@ namespace GraveBuilder
                 File.WriteAllText(Path.Combine(dir, cellsFile), _map.ToStructureJson("builder"));
                 File.WriteAllText(defPath, def.ToString(Formatting.Indented));
 
+                // Only reached once both files are written: run the framework's reload (the
+                // RELOAD MODS button's path) so the contract is live straight away. Its own
+                // try: the export itself has succeeded either way, and the status must say so.
+                string reloadNote;
+                try
+                {
+                    GraveFramework.Plugin.ReloadAll();
+                    reloadNote = "It's already live in the Contracts list.";
+                }
+                catch (Exception re)
+                {
+                    Plugin.Log.LogWarning($"MapBuilder: reload after export failed: {re}");
+                    reloadNote = $"Reloading the Contracts list failed ({re.Message}); click RELOAD MODS on the Contracts page to try again.";
+                }
+                // After the reload, so the list reflects the re-injected catalogue.
                 RefreshLoadList();
-                SetStatus($"{(overwrote ? "Overwrote" : "Exported")} structure '{id}' ({_map.cells.Count} cells, {bands.Count} band{(bands.Count == 1 ? "" : "s")}) to {dir}. Press Ctrl+F6 to load it into the Contracts list.");
+                SetStatus($"{(overwrote ? "Overwrote" : "Exported")} structure '{id}' ({_map.cells.Count} cells, {bands.Count} stage{(bands.Count == 1 ? "" : "s")}) to {dir}. {reloadNote}");
             }
             catch (Exception e)
             {
@@ -4191,7 +5453,8 @@ namespace GraveBuilder
             }
             _partSaveHost.Clear();
             bool any = _clipboard.Count > 0;
-            _partSaveHost.Add(ActionBtn(any ? $"SAVE CLIPBOARD AS PART ({_clipboard.Count} CELLS)" : "SAVE CLIPBOARD AS PART", SavePart, enabled: any));
+            // Compact: it sits on the part-name line (BuildLoadPartSection), not under it.
+            _partSaveHost.Add(CompactActionBtn(any ? $"SAVE CLIPBOARD AS PART ({_clipboard.Count} CELLS)" : "SAVE CLIPBOARD AS PART", SavePart, enabled: any));
         }
 
         private void SavePart()
@@ -4278,6 +5541,10 @@ namespace GraveBuilder
                 return;
             }
             _partsListHost.Clear();
+            if (_partsSummary != null)
+            {
+                _partsSummary.text = $"{_partEntries.Count} SAVED PART{(_partEntries.Count == 1 ? "" : "S")}";
+            }
             if (_partEntries.Count == 0)
             {
                 _partsListHost.Add(BodyText_("No saved parts yet. Select some cells on the map, COPY them, then save them below."));
@@ -4289,12 +5556,12 @@ namespace GraveBuilder
                 VisualElement row = new VisualElement { name = "map-builder-part-row" };
                 row.style.flexDirection = FlexDirection.Row;
                 row.style.alignItems = Align.Center;
-                row.style.paddingLeft = 22f;
-                row.style.paddingRight = 12f;
-                row.style.paddingTop = 10f;
-                row.style.paddingBottom = 10f;
-                row.style.marginBottom = 10f;
-                SlabFrame frame = MetaUi.Slab(row, Accent, dim: false, 13f);
+                row.style.paddingLeft = 18f;
+                row.style.paddingRight = 8f;
+                row.style.paddingTop = 5f;
+                row.style.paddingBottom = 5f;
+                row.style.marginBottom = 8f;
+                SlabFrame frame = MetaUi.Slab(row, Accent, dim: false, 12f);
                 MetaUi.PaintSlab(frame, Accent, dim: false, 0.45f);
                 row.RegisterCallback<PointerEnterEvent>(_ => MetaUi.PaintSlab(frame, Accent, dim: false, 0.85f));
                 row.RegisterCallback<PointerLeaveEvent>(_ => MetaUi.PaintSlab(frame, Accent, dim: false, 0.45f));
@@ -4303,21 +5570,19 @@ namespace GraveBuilder
                 text.style.flexGrow = 1f;
                 text.style.flexShrink = 1f;
                 text.style.overflow = Overflow.Hidden;
-                Label nameLabel = MetaUi.Text(e.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 21f, MetaUi.TextTone(Accent), 2f);
+                Label nameLabel = MetaUi.Text(e.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 17f, MetaUi.TextTone(Accent), 1.5f);
                 nameLabel.pickingMode = PickingMode.Ignore;
                 text.Add(nameLabel);
-                Label info = MetaUi.Text($"{e.CellCount} cells{(e.EmptyCount > 0 ? $" ({e.EmptyCount} empty, which erase when pasted)" : "")} · {Path.GetFileName(e.Path)}", MetaUi.Face.Body, 15f, DimText, 0.5f);
+                Label info = MetaUi.Text($"{e.CellCount} cells{(e.EmptyCount > 0 ? $" ({e.EmptyCount} empty, which erase when pasted)" : "")} · {Path.GetFileName(e.Path)}", MetaUi.Face.Body, 13f, DimText, 0.5f);
                 info.pickingMode = PickingMode.Ignore;
-                info.style.marginTop = 2f;
+                info.style.marginTop = 1f;
                 text.Add(info);
                 row.Add(text);
 
-                VisualElement load = MetaUi.Key("LOAD INTO CLIPBOARD", () => LoadPart(e), 340f, Accent);
-                load.style.flexShrink = 0f;
+                VisualElement load = RowKey("LOAD INTO CLIPBOARD", () => LoadPart(e), 270f, Accent);
                 load.style.marginLeft = 16f;
                 row.Add(AttachTooltip(load, "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it."));
-                VisualElement del = MetaUi.Key("×", () => DeletePart(e), 54f, MetaUi.Crimson);
-                del.style.flexShrink = 0f;
+                VisualElement del = RowKey("×", () => DeletePart(e), 44f, MetaUi.Crimson);
                 del.style.marginLeft = 10f;
                 row.Add(AttachTooltip(del, "Delete this part's file. The clipboard is unchanged."));
                 MetaUi.Lift(row, slide: true);
