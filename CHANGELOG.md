@@ -2,6 +2,11 @@
 
 ## v1.1.0
 
+- The map builder's shortcuts (Ctrl+F7 to open/close, Ctrl+Z/Y/C/X/V) can now be rebound in
+  Settings > Controls, in a new MAP BUILDER SHORTCUTS section. Saved to `shortcuts.json`.
+- The TOOLS panel's Undo/Redo/Copy/Cut/Paste tooltips now show the live bound key instead of a
+  fixed "Ctrl+Z" etc., so they stay correct after a rebind.
+
 - Replaced the Simple/Advanced mode toggle with a single unified map/palette/tools view.
 - Reorganized the library panel into tabs (STRUCTURES/PARTS/IMAGE/EXPORT), each with its own
   detail or preview pane, replacing the old combined "Structures & Parts" view.

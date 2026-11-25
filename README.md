@@ -15,6 +15,10 @@ Requires [GraveFramework](https://github.com/Luminaex/GraveFramework) — instal
 - **Map builder UI** — open it with `Ctrl+F7` in-game, or the new "MAP BUILDER" button on the
   title screen. Paint/erase/fill/line/circle tools, mirror painting, undo/redo, a clipboard for
   copy-pasting sections between maps, and a library view for loading/exporting saved work.
+- **Rebindable shortcuts** — the open/close key (`Ctrl+F7`) and the builder's undo/redo/copy/
+  cut/paste keys (`Ctrl+Z/Y/C/X/V`) can be rebound under **Settings > Controls > MAP BUILDER
+  SHORTCUTS** (always Ctrl + a letter, number or F1-F12). Saved to this plugin's own
+  `shortcuts.json`.
 - **Instant playtest** — "Save Override" writes the map to this plugin's own
   `sandbox_map.json`; the next mining sortie you start loads it instead of the default
   structure. No restart needed.

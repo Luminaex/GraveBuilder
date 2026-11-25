@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using GraveyardOrbit;
 
 namespace GraveBuilder
 {
@@ -55,8 +56,8 @@ namespace GraveBuilder
         {
             OpenFileName ofn = new OpenFileName
             {
-                lpstrFilter = "Image files\0*.png;*.jpg;*.jpeg\0All files\0*.*\0\0",
-                lpstrTitle = "Select an image to load",
+                lpstrFilter = Loc.T("gravebuilder.file_dialog.filter_image_files", "Image files") + "\0*.png;*.jpg;*.jpeg\0" + Loc.T("gravebuilder.file_dialog.filter_all_files", "All files") + "\0*.*\0\0",
+                lpstrTitle = Loc.T("gravebuilder.file_dialog.title", "Select an image to load"),
                 lpstrInitialDir = initialDir,
                 Flags = OfnFileMustExist | OfnPathMustExist | OfnNoChangeDir
             };

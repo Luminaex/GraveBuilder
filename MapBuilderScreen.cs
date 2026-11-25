@@ -114,14 +114,14 @@ namespace GraveBuilder
         // text, which is accurate but not the name a player would recognise; this is.
         private static readonly Dictionary<string, string> SpecialTileLabel = new Dictionary<string, string>
         {
-            ["explosive"] = "Explosive",
-            ["lightning"] = "Lightning",
-            ["void"] = "Void",
-            ["swarm"] = "Swarm",
-            ["special_1"] = "Laser Shard",
-            ["special_2"] = "Breacher Shard",
-            ["special_3"] = "Dynamo Shard",
-            ["meta_1"] = "Pulse Shard",
+            ["explosive"] = Loc.T("gravebuilder.tiles.explosive", "Explosive"),
+            ["lightning"] = Loc.T("gravebuilder.tiles.lightning", "Lightning"),
+            ["void"] = Loc.T("gravebuilder.tiles.void", "Void"),
+            ["swarm"] = Loc.T("gravebuilder.tiles.swarm", "Swarm"),
+            ["special_1"] = Loc.T("gravebuilder.tiles.laser_shard", "Laser Shard"),
+            ["special_2"] = Loc.T("gravebuilder.tiles.breacher_shard", "Breacher Shard"),
+            ["special_3"] = Loc.T("gravebuilder.tiles.dynamo_shard", "Dynamo Shard"),
+            ["meta_1"] = Loc.T("gravebuilder.tiles.pulse_shard", "Pulse Shard"),
         };
 
         private static readonly Regex IdPattern = new Regex("^[a-z0-9_]+$");
@@ -174,38 +174,38 @@ namespace GraveBuilder
         // says so once rather than on every field.
         private static readonly BandField[] BandFields =
         {
-            new BandField { Key = "layer", Label = "Substrate colour", Default = "1", Min = 1, Max = 5,
-                Tooltip = "Which painted colour this stage is made of: every cell painted this colour belongs to this stage. If two stages pick the same colour, the first one gets all of its tiles." },
+            new BandField { Key = "layer", Label = Loc.T("gravebuilder.bands.layer_label", "Substrate colour"), Default = "1", Min = 1, Max = 5,
+                Tooltip = Loc.T("gravebuilder.bands.layer_tooltip", "Which painted colour this stage is made of: every cell painted this colour belongs to this stage. If two stages pick the same colour, the first one gets all of its tiles.") },
             // Cosmetic only (verified 2026-11-22): the only reader of outerFrac anywhere in the
             // game is StructureHexElement, the little hex icon in the Contracts menu — it draws
             // this band's ring at this fraction of that icon's radius. No sortie/mining code
             // reads it; a band's actual tile membership is purely by colour match
             // (StructureDef.BandIndexOfLayer), and unlock order is purely the bands[] array
             // order. Label reflects that it's just the preview icon, not a real boundary.
-            new BandField { Key = "outer_frac", Label = "Preview icon ring size", Default = "1", IsFloat = true, Min = 0, Max = 1,
-                Tooltip = "Cosmetic only. How far out this stage's ring is drawn on the little hex icon in the Contracts list, as a fraction of the icon's radius (0 to 1). It doesn't change which tiles are in the stage." },
-            new BandField { Key = "hp_sealed", Label = "While sealed", Default = "75", Min = 0, Max = int.MaxValue,
-                Tooltip = "Hit points each of this stage's tiles has while the stage is still sealed (locked). Higher = slower to mine through. Default 75." },
-            new BandField { Key = "special_1", Label = "Laser shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Laser Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
-            new BandField { Key = "special_2", Label = "Breacher shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Breacher Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
-            new BandField { Key = "special_3", Label = "Dynamo shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Dynamo Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
-            new BandField { Key = "meta_1", Label = "Pulse shards", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many Pulse Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles." },
-            new BandField { Key = "explosive", Label = "Explosive", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Explosive enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
-            new BandField { Key = "lightning", Label = "Lightning", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Lightning enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
-            new BandField { Key = "void", Label = "Void", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Void enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
-            new BandField { Key = "swarm", Label = "Swarm", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "How many hidden Swarm enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy." },
+            new BandField { Key = "outer_frac", Label = Loc.T("gravebuilder.bands.outer_frac_label", "Preview icon ring size"), Default = "1", IsFloat = true, Min = 0, Max = 1,
+                Tooltip = Loc.T("gravebuilder.bands.outer_frac_tooltip", "Cosmetic only. How far out this stage's ring is drawn on the little hex icon in the Contracts list, as a fraction of the icon's radius (0 to 1). It doesn't change which tiles are in the stage.") },
+            new BandField { Key = "hp_sealed", Label = Loc.T("gravebuilder.bands.hp_sealed_label", "While sealed"), Default = "75", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.hp_sealed_tooltip", "Hit points each of this stage's tiles has while the stage is still sealed (locked). Higher = slower to mine through. Default 75.") },
+            new BandField { Key = "special_1", Label = Loc.T("gravebuilder.bands.special_1_label", "Laser shards"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.special_1_tooltip", "How many Laser Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles.") },
+            new BandField { Key = "special_2", Label = Loc.T("gravebuilder.bands.special_2_label", "Breacher shards"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.special_2_tooltip", "How many Breacher Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles.") },
+            new BandField { Key = "special_3", Label = Loc.T("gravebuilder.bands.special_3_label", "Dynamo shards"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.special_3_tooltip", "How many Dynamo Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles.") },
+            new BandField { Key = "meta_1", Label = Loc.T("gravebuilder.bands.meta_1_label", "Pulse shards"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.meta_1_tooltip", "How many Pulse Shard pickups (the shard currency used to research Mods) are seeded into this stage's tiles.") },
+            new BandField { Key = "explosive", Label = Loc.T("gravebuilder.bands.explosive_label", "Explosive"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.explosive_tooltip", "How many hidden Explosive enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy.") },
+            new BandField { Key = "lightning", Label = Loc.T("gravebuilder.bands.lightning_label", "Lightning"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.lightning_tooltip", "How many hidden Lightning enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy.") },
+            new BandField { Key = "void", Label = Loc.T("gravebuilder.bands.void_label", "Void"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.void_tooltip", "How many hidden Void enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy.") },
+            new BandField { Key = "swarm", Label = Loc.T("gravebuilder.bands.swarm_label", "Swarm"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.swarm_tooltip", "How many hidden Swarm enemy encounters are seeded into this stage's tiles. Destroying such a tile (or mining close to it) wakes the enemy.") },
             // TileField.LookLayer: once the band is unsealed its tiles are drawn with the look
             // of layer unsealedLook instead of their painted layer (0 or less = painted look).
-            new BandField { Key = "unsealed_look", Label = "Core look after unlocking", Default = "0", Min = 0, Max = int.MaxValue,
-                Tooltip = "Cosmetic only, no gameplay effect. Once this stage unlocks, its tiles are drawn with the look of another colour: 1 Grey, 2 Blue, 3 Pink, 4 Gold, 5 Purple. 0 keeps the colour you painted." },
+            new BandField { Key = "unsealed_look", Label = Loc.T("gravebuilder.bands.unsealed_look_label", "Core look after unlocking"), Default = "0", Min = 0, Max = int.MaxValue,
+                Tooltip = Loc.T("gravebuilder.bands.unsealed_look_tooltip", "Cosmetic only, no gameplay effect. Once this stage unlocks, its tiles are drawn with the look of another colour: 1 Grey, 2 Blue, 3 Pink, 4 Gold, 5 Purple. 0 keeps the colour you painted.") },
         };
 
         // BandFields indices the UI still shows (BandRow). The rest of BandFields (outer_frac,
@@ -665,7 +665,7 @@ namespace GraveBuilder
 
             // Shell: the game's terminal frame (chamfered glass panel, header band, foot band).
             // Always the painting view; the library is an overlay on top of it (ShowLibrary).
-            TerminalUi.Frame(root, Accent, "MAP BUILDER", out VisualElement body, out VisualElement foot, "map-builder-frame");
+            TerminalUi.Frame(root, Accent, Loc.T("gravebuilder.screen.frame_title", "MAP BUILDER"), out VisualElement body, out VisualElement foot, "map-builder-frame");
 
             // A hair of inset so the canvas doesn't paint over the frame's own edge stroke.
             body.style.flexDirection = FlexDirection.Column;
@@ -689,7 +689,7 @@ namespace GraveBuilder
             }
             else
             {
-                SetStatus("Map builder ready.", log: false);
+                SetStatus(Loc.T("gravebuilder.status.builder_ready", "Map builder ready."), log: false);
             }
 
             // Stats are recomputed at most every 100 ms while painting, not per pointer sample.
@@ -724,7 +724,8 @@ namespace GraveBuilder
             }
         }
 
-        // Ctrl+Z undo; Ctrl+Y or Ctrl+Shift+Z redo; Ctrl+C / Ctrl+X / Ctrl+V copy, cut, paste.
+        // Ctrl+Z undo; Ctrl+Y or Ctrl+Shift+Z redo; Ctrl+C / Ctrl+X / Ctrl+V copy, cut, paste
+        // (the default keys; the player can rebind them, see ShortcutBindings).
         // The painting view only: the library has no selection or clipboard actions. Never
         // while a text field has focus, so Ctrl+V/C/X/Z keep editing the text in Image path,
         // Part name and the rest.
@@ -738,44 +739,55 @@ namespace GraveBuilder
             {
                 return;
             }
+            // Keys from ShortcutBindings (rebindable in Settings > Controls); an unbound
+            // (KeyCode.None) action never matches. Shift + Undo's key is always Redo too.
             bool handled = true;
-            switch (e.keyCode)
+            if (IsShortcut(e.keyCode, ShortcutBindings.Undo))
             {
-                case KeyCode.Z:
-                    if (e.shiftKey)
-                    {
-                        Redo();
-                    }
-                    else
-                    {
-                        Undo();
-                    }
-                    break;
-                case KeyCode.Y:
+                if (e.shiftKey)
+                {
                     Redo();
-                    break;
-                case KeyCode.C:
-                    Copy();
-                    break;
-                case KeyCode.X:
-                    Cut();
-                    break;
-                case KeyCode.V:
-                    // Starts placement, like PASTE; unlike the button it never cancels it, since
-                    // a second Ctrl+V reads as "paste again", which placement already does.
-                    if (!PasteModeActive)
-                    {
-                        TogglePaste();
-                    }
-                    break;
-                default:
-                    handled = false;
-                    break;
+                }
+                else
+                {
+                    Undo();
+                }
+            }
+            else if (IsShortcut(e.keyCode, ShortcutBindings.Redo))
+            {
+                Redo();
+            }
+            else if (IsShortcut(e.keyCode, ShortcutBindings.Copy))
+            {
+                Copy();
+            }
+            else if (IsShortcut(e.keyCode, ShortcutBindings.Cut))
+            {
+                Cut();
+            }
+            else if (IsShortcut(e.keyCode, ShortcutBindings.Paste))
+            {
+                // Starts placement, like PASTE; unlike the button it never cancels it, since
+                // a second Ctrl+V reads as "paste again", which placement already does.
+                if (!PasteModeActive)
+                {
+                    TogglePaste();
+                }
+            }
+            else
+            {
+                handled = false;
             }
             if (handled)
             {
                 e.StopPropagation();
             }
+        }
+
+        private static bool IsShortcut(KeyCode pressed, string actionId)
+        {
+            KeyCode bound = ShortcutBindings.Get(actionId);
+            return bound != KeyCode.None && pressed == bound;
         }
 
         // The element or any ancestor is a text input (a TextField's inner editor is what
@@ -800,7 +812,7 @@ namespace GraveBuilder
             // keys (library, CLOSE). The right group is its own row so the readout sits beside
             // the keys rather than mid-band; FootKeys is given that row, so the foot's right
             // padding is cleared here as FootKeys would.
-            _hoverLabel = MetaUi.Text("CELL  -", MetaUi.Face.BodyBold, 18f, DimText, 2f);
+            _hoverLabel = MetaUi.Text(Loc.T("gravebuilder.screen.hover_none", "CELL  -"), MetaUi.Face.BodyBold, 18f, DimText, 2f);
             _hoverLabel.style.flexShrink = 1f;
             foot.Add(_hoverLabel);
             foot.style.paddingRight = 0f;
@@ -814,8 +826,8 @@ namespace GraveBuilder
             right.Add(BuildStatsReadout());
             VisualElement keys = TerminalUi.FootKeys(right, 18f);
             keys.style.flexShrink = 0f;
-            keys.Add(TerminalUi.FootKey("map-builder-library", "STRUCTURES & PARTS", Accent, OpenLibrary, primary: false, 440f));
-            keys.Add(TerminalUi.FootKey("map-builder-close", "CLOSE", Accent, Close, primary: true, 280f));
+            keys.Add(TerminalUi.FootKey("map-builder-library", Loc.T("gravebuilder.screen.foot_library", "STRUCTURES & PARTS"), Accent, OpenLibrary, primary: false, 440f));
+            keys.Add(TerminalUi.FootKey("map-builder-close", Loc.T("gravebuilder.screen.foot_close", "CLOSE"), Accent, Close, primary: true, 280f));
 
             // Stage: fills the body. Children in paint/pick order (later = on top): canvas,
             // status callout, key bar, panels. No padding, so its local space is the space the
@@ -916,9 +928,9 @@ namespace GraveBuilder
             totals.style.justifyContent = Justify.FlexEnd;
             totals.style.marginBottom = 4f;
             box.Add(totals);
-            ReadoutItem(totals, "cells", "CELLS", null);
-            ReadoutItem(totals, "radius", "RADIUS", null);
-            ReadoutItem(totals, "specials", "SPECIAL", null);
+            ReadoutItem(totals, "cells", Loc.T("gravebuilder.stats.cells", "CELLS"), null);
+            ReadoutItem(totals, "radius", Loc.T("gravebuilder.stats.radius", "RADIUS"), null);
+            ReadoutItem(totals, "specials", Loc.T("gravebuilder.stats.special", "SPECIAL"), null);
 
             VisualElement layers = Row();
             layers.style.alignItems = Align.Center;
@@ -929,7 +941,7 @@ namespace GraveBuilder
                 ReadoutItem(layers, "L" + l, null, StructureSilhouette.LayerColour(l));
             }
 
-            return AttachTooltip(box, "Live map stats. Top line: painted cells, map radius, and special tiles (enemy markers and shards). Bottom line: painted cells of each substrate colour (Grey, Blue, Pink, Gold, Purple).");
+            return AttachTooltip(box, Loc.T("gravebuilder.stats.tooltip", "Live map stats. Top line: painted cells, map radius, and special tiles (enemy markers and shards). Bottom line: painted cells of each substrate colour (Grey, Blue, Pink, Gold, Purple)."));
         }
 
         // One readout entry: an optional dim caption or a colour chip, then the value label
@@ -1106,28 +1118,6 @@ namespace GraveBuilder
             ShowLibrary(_doc.rootVisualElement);
         }
 
-        // ---- dev-test auto-open --------------------------------------------------------
-        // Gated entirely by Plugin's devtest_boot.flag check: these two are never called
-        // otherwise. Split in two because Open() plays a ~1.2s wipe animation before the screen
-        // (and _doc) actually exists — Plugin's Update() calls PrepareDevTestOpen() once, then
-        // polls IsOpen and calls FinishDevTestOpen() the frame it flips true. State that Build()
-        // reads (_bands, _libraryTab) has to be set before Open() so the very first
-        // build already reflects it; OpenLibrary() needs _doc, so it can only happen after.
-        internal static void PrepareDevTestOpen()
-        {
-            if (_bands.Count == 0)
-            {
-                _bands.Add(DefaultBand());
-            }
-            _libraryTab = LibraryTab.Structures;
-            Open();
-        }
-
-        internal static void FinishDevTestOpen()
-        {
-            _instance?.OpenLibrary();
-        }
-
         // Back to the painting view, which was never torn down: the same panels, zoom, pan
         // and tool are all still there.
         private void CloseLibrary()
@@ -1261,7 +1251,7 @@ namespace GraveBuilder
             // 22-26px inset, so its glass panel doesn't just cover the ring's art. Its own title
             // stays a fixed page name (unlike the ring's centre title) since Frame() bakes the
             // string in once and doesn't hand back a label to update later.
-            VisualElement frame = TerminalUi.Frame(_libraryOverlay, Accent, "MAP BUILDER · LIBRARY", out VisualElement body, out VisualElement foot, "map-builder-library-frame");
+            VisualElement frame = TerminalUi.Frame(_libraryOverlay, Accent, Loc.T("gravebuilder.library.frame_title", "MAP BUILDER · LIBRARY"), out VisualElement body, out VisualElement foot, "map-builder-library-frame");
             frame.style.left = Length.Percent(ArtFrameHoleX0 * 100f);
             frame.style.top = Length.Percent(ArtFrameHoleY0 * 100f);
             frame.style.right = Length.Percent((1f - ArtFrameHoleX1) * 100f);
@@ -1295,9 +1285,9 @@ namespace GraveBuilder
             // Foot: what this page is on the left; BACK TO MAP on the right. No CLOSE here: it
             // used to sit beside BACK TO MAP looking the same while exiting the whole builder,
             // and the painting view's own CLOSE is one click away once this is dismissed.
-            foot.Add(MetaUi.Text("LOAD A STRUCTURE, AN IMAGE OR A SAVED PART, OR EXPORT THIS MAP", MetaUi.Face.BodyBold, 18f, DimText, 2f));
+            foot.Add(MetaUi.Text(Loc.T("gravebuilder.library.foot_hint", "LOAD A STRUCTURE, AN IMAGE OR A SAVED PART, OR EXPORT THIS MAP"), MetaUi.Face.BodyBold, 18f, DimText, 2f));
             VisualElement keys = TerminalUi.FootKeys(foot, 18f);
-            keys.Add(TerminalUi.FootKey("map-builder-back", "BACK TO MAP", Accent, CloseLibrary, primary: true, 380f));
+            keys.Add(TerminalUi.FootKey("map-builder-back", Loc.T("gravebuilder.library.foot_back", "BACK TO MAP"), Accent, CloseLibrary, primary: true, 380f));
 
             // Page stage: the tab row, the current tab's page, then the status line under it
             // (in flow, so it never covers a row), then the tooltip box on top.
@@ -1352,10 +1342,10 @@ namespace GraveBuilder
 
         private static readonly (LibraryTab tab, string label)[] LibraryTabKeys =
         {
-            (LibraryTab.Structures, "STRUCTURES"),
-            (LibraryTab.Parts, "PARTS"),
-            (LibraryTab.Image, "IMAGE"),
-            (LibraryTab.Export, "EXPORT")
+            (LibraryTab.Structures, Loc.T("gravebuilder.library.tab_structures", "STRUCTURES")),
+            (LibraryTab.Parts, Loc.T("gravebuilder.library.tab_parts", "PARTS")),
+            (LibraryTab.Image, Loc.T("gravebuilder.library.tab_image", "IMAGE")),
+            (LibraryTab.Export, Loc.T("gravebuilder.library.tab_export", "EXPORT"))
         };
 
         // One tab's page under the tab row, filling the rest of the height. A form page
@@ -1425,7 +1415,7 @@ namespace GraveBuilder
                     return label;
                 }
             }
-            return "LIBRARY";
+            return Loc.T("gravebuilder.library.title_fallback", "LIBRARY");
         }
 
         // The tab keys in the panel keys' look (RefreshPanelKey): accent for the page showing,
@@ -1560,14 +1550,14 @@ namespace GraveBuilder
         // row is selected on the right (preview, description, LOAD SELECTED / DELETE).
         private void BuildLoadStructureSection(VisualElement page)
         {
-            page.Add(BodyText_("Click a structure to preview it on the right; double-click loads it straight away, replacing the current map (can be undone). Your own exports (orange) also fill in the EXPORT tab's form; game structures (grey) reset it."));
+            page.Add(BodyText_(Loc.T("gravebuilder.structures.intro", "Click a structure to preview it on the right; double-click loads it straight away, replacing the current map (can be undone). Your own exports (orange) also fill in the EXPORT tab's form; game structures (grey) reset it.")));
 
             ScrollView loadScroll = ListDetailSplit(page, out VisualElement listFoot, out _loadDetailHost, out _loadSummary);
             _loadListHost = loadScroll.contentContainer;
-            listFoot.Add(CompactActionBtn("REFRESH LIST", () =>
+            listFoot.Add(CompactActionBtn(Loc.T("gravebuilder.structures.refresh_list", "REFRESH LIST"), () =>
             {
                 RefreshLoadList();
-                SetStatus($"Found {_loadEntries.Count} loadable structures.");
+                SetStatus(Loc.F("gravebuilder.structures.status_found", "Found {n} loadable structures.", ("n", _loadEntries.Count)));
             }));
             RefreshLoadDetail();
         }
@@ -1589,7 +1579,7 @@ namespace GraveBuilder
                 empty.style.flexGrow = 1f;
                 empty.style.justifyContent = Justify.Center;
                 empty.style.alignItems = Align.Center;
-                empty.Add(BodyText_("Select a structure from the list to preview it here."));
+                empty.Add(BodyText_(Loc.T("gravebuilder.structures.detail_empty", "Select a structure from the list to preview it here.")));
                 _loadDetailHost.Add(empty);
                 return;
             }
@@ -1613,15 +1603,15 @@ namespace GraveBuilder
 
             panel.Add(MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 22f, MetaUi.TextTone(family), 2f));
 
-            string tag = entry.Local ? "YOUR EXPORT" : "GAME STRUCTURE";
-            Label sub = MetaUi.Text(cellCount > 0 ? $"{tag} · {cellCount} cells" : tag, MetaUi.Face.Body, 14f, DimText, 1.5f);
+            string tag = entry.Local ? Loc.T("gravebuilder.structures.detail_tag_yours", "YOUR EXPORT") : Loc.T("gravebuilder.structures.detail_tag_game", "GAME STRUCTURE");
+            Label sub = MetaUi.Text(cellCount > 0 ? Loc.F("gravebuilder.structures.detail_tag_cells", "{tag} · {n} cells", ("tag", tag), ("n", cellCount)) : tag, MetaUi.Face.Body, 14f, DimText, 1.5f);
             sub.style.marginTop = 4f;
             sub.style.marginBottom = 14f;
             panel.Add(sub);
 
             string desc = entry.Local
-                ? "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT tab's form, ready to re-export."
-                : "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT tab's form.";
+                ? Loc.T("gravebuilder.structures.detail_desc_local", "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT tab's form, ready to re-export.")
+                : Loc.T("gravebuilder.structures.detail_desc_game", "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT tab's form.");
             Label descLabel = MetaUi.Text(desc, MetaUi.Face.Body, 15f, BodyText, 0.5f, wrap: true);
             descLabel.style.marginBottom = 18f;
             panel.Add(descLabel);
@@ -1629,13 +1619,13 @@ namespace GraveBuilder
             VisualElement actions = Row();
             actions.style.flexWrap = Wrap.Wrap;
             actions.style.alignItems = Align.Center;
-            VisualElement loadBtn = CompactActionBtn("LOAD SELECTED", LoadSelected, family: Accent, size: 17f, padX: 36f);
+            VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.structures.load_selected", "LOAD SELECTED"), LoadSelected, family: Accent, size: 17f, padX: 36f);
             loadBtn.style.marginRight = 10f;
             actions.Add(loadBtn);
             if (entry.Local)
             {
-                actions.Add(AttachTooltip(CompactActionBtn("DELETE", () => DeleteLocalStructure(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
-                    "Delete this export's files (asks first)."));
+                actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.structures.delete_button", "DELETE"), () => DeleteLocalStructure(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                    Loc.T("gravebuilder.structures.delete_tooltip", "Delete this export's files (asks first).")));
             }
             panel.Add(actions);
         }
@@ -1659,37 +1649,37 @@ namespace GraveBuilder
             body.style.marginRight = 28f;
             split.Add(body);
 
-            body.Add(BodyText_("Turns a PNG or JPEG into a map in the substrate colours: one cell per sampled pixel, transparent pixels become gaps. PALETTE matches each pixel to the nearest substrate colour; LUMINANCE picks it by brightness alone. Loading replaces the map and can be undone, so try the options and compare."));
+            body.Add(BodyText_(Loc.T("gravebuilder.image.intro", "Turns a PNG or JPEG into a map in the substrate colours: one cell per sampled pixel, transparent pixels become gaps. PALETTE matches each pixel to the nearest substrate colour; LUMINANCE picks it by brightness alone. Loading replaces the map and can be undone, so try the options and compare.")));
 
-            VisualElement imagePathWrap = Field("Image path", _imagePathText, v =>
+            VisualElement imagePathWrap = Field(Loc.T("gravebuilder.image.path_label", "Image path"), _imagePathText, v =>
             {
                 _imagePathText = v;
                 RefreshImagePreview();
             }, out _imagePathField);
-            AttachTooltip(imagePathWrap, "The full path to a .png or .jpg file, e.g. C:\\Pictures\\logo.png. Surrounding quotes (from Copy as path) are fine.");
+            AttachTooltip(imagePathWrap, Loc.T("gravebuilder.image.path_tooltip", "The full path to a .png or .jpg file, e.g. C:\\Pictures\\logo.png. Surrounding quotes (from Copy as path) are fine."));
             body.Add(imagePathWrap);
-            body.Add(AttachTooltip(ChipBtn("BROWSE\u2026", BrowseImage), "Opens a file picker to choose a PNG or JPEG."));
+            body.Add(AttachTooltip(ChipBtn(Loc.T("gravebuilder.image.browse_button", "BROWSE\u2026"), BrowseImage), Loc.T("gravebuilder.image.browse_tooltip", "Opens a file picker to choose a PNG or JPEG.")));
 
-            VisualElement imageSizeWrap = Field("Max grid size", _imageSizeText, v =>
+            VisualElement imageSizeWrap = Field(Loc.T("gravebuilder.image.size_label", "Max grid size"), _imageSizeText, v =>
             {
                 _imageSizeText = v;
                 RefreshImagePreview();
             }, out _imageSizeField);
-            AttachTooltip(imageSizeWrap, $"How many cells the image's longer side spans, {MinRadius} to {MaxImageSize}. The other side follows the image's own shape. Bigger keeps more detail but makes a larger map.");
-            VisualElement imageAlphaWrap = Field("Alpha threshold", _imageAlphaText, v =>
+            AttachTooltip(imageSizeWrap, Loc.F("gravebuilder.image.size_tooltip", "How many cells the image's longer side spans, {min} to {max}. The other side follows the image's own shape. Bigger keeps more detail but makes a larger map.", ("min", MinRadius), ("max", MaxImageSize)));
+            VisualElement imageAlphaWrap = Field(Loc.T("gravebuilder.image.alpha_label", "Alpha threshold"), _imageAlphaText, v =>
             {
                 _imageAlphaText = v;
                 RefreshImagePreview();
             }, out _imageAlphaField);
-            AttachTooltip(imageAlphaWrap, "0 to 255. Pixels less opaque than this become gaps. 0 keeps every pixel, even fully transparent ones; raise it to trim a soft-edged cutout.");
+            AttachTooltip(imageAlphaWrap, Loc.T("gravebuilder.image.alpha_tooltip", "0 to 255. Pixels less opaque than this become gaps. 0 keeps every pixel, even fully transparent ones; raise it to trim a soft-edged cutout."));
             body.Add(FieldRow(imageSizeWrap, imageAlphaWrap));
 
             _imageOptionsHost = new VisualElement();
             body.Add(_imageOptionsHost);
             RefreshImageOptions();
 
-            body.Add(AttachTooltip(CompactActionBtn("LOAD IMAGE", LoadImage),
-                "Replaces the map with the image and takes you back to it. Can be undone."));
+            body.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.image.load_button", "LOAD IMAGE"), LoadImage),
+                Loc.T("gravebuilder.image.load_tooltip", "Replaces the map with the image and takes you back to it. Can be undone.")));
 
             _imagePreviewHost = new VisualElement { name = "map-builder-image-preview" };
             _imagePreviewHost.style.flexGrow = 1f;
@@ -1730,12 +1720,12 @@ namespace GraveBuilder
             string path = (_imagePathText ?? "").Trim().Trim('"').Trim();
             if (path.Length == 0)
             {
-                panel.Add(BodyText_("Pick a PNG or JPEG to preview the converted map here."));
+                panel.Add(BodyText_(Loc.T("gravebuilder.image.preview_prompt", "Pick a PNG or JPEG to preview the converted map here.")));
                 return;
             }
             if (!File.Exists(path))
             {
-                panel.Add(BodyText_($"No file at '{path}'."));
+                panel.Add(BodyText_(Loc.F("gravebuilder.image.preview_no_file", "No file at '{path}'.", ("path", path))));
                 return;
             }
             // Lenient: a half-typed field (e.g. "" or "1" while backspacing "140") just skips
@@ -1743,7 +1733,7 @@ namespace GraveBuilder
             // IMAGE's own ReadClampedInt is the one that actually enforces this.
             if (!int.TryParse((_imageSizeText ?? "").Trim(), out int size) || !int.TryParse((_imageAlphaText ?? "").Trim(), out int alphaThreshold))
             {
-                panel.Add(BodyText_("Enter a whole number for Max grid size and Alpha threshold to preview the converted map."));
+                panel.Add(BodyText_(Loc.T("gravebuilder.image.preview_bad_number", "Enter a whole number for Max grid size and Alpha threshold to preview the converted map.")));
                 return;
             }
             size = Mathf.Clamp(size, MinRadius, MaxImageSize);
@@ -1756,19 +1746,19 @@ namespace GraveBuilder
                 srcTex = new Texture2D(2, 2);
                 if (!ImageConversion.LoadImage(srcTex, bytes))
                 {
-                    panel.Add(BodyText_($"'{Path.GetFileName(path)}' couldn't be read as an image. PNG and JPEG are supported."));
+                    panel.Add(BodyText_(Loc.F("gravebuilder.image.preview_unreadable", "'{file}' couldn't be read as an image. PNG and JPEG are supported.", ("file", Path.GetFileName(path)))));
                     return;
                 }
                 SandboxMap previewMap = ImageToMap(srcTex, size, alphaThreshold, _imageLuminance, _imageInvert, _imageDither);
                 if (previewMap == null)
                 {
-                    panel.Add(BodyText_($"'{Path.GetFileName(path)}' produced no cells: every pixel is below the alpha threshold ({alphaThreshold}). Lower it to keep more."));
+                    panel.Add(BodyText_(Loc.F("gravebuilder.image.preview_no_cells", "'{file}' produced no cells: every pixel is below the alpha threshold ({threshold}). Lower it to keep more.", ("file", Path.GetFileName(path)), ("threshold", alphaThreshold))));
                     return;
                 }
                 Texture2D tex = RenderMapPreview(previewMap);
                 if (tex == null)
                 {
-                    panel.Add(BodyText_("Couldn't render a preview."));
+                    panel.Add(BodyText_(Loc.T("gravebuilder.image.preview_render_failed", "Couldn't render a preview.")));
                     return;
                 }
                 _imagePreviewTex = tex;
@@ -1781,13 +1771,13 @@ namespace GraveBuilder
                 image.style.backgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Center);
                 image.style.backgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Center);
                 panel.Add(image);
-                Label caption = MetaUi.Text($"{previewMap.cells.Count} cells \u00b7 {Path.GetFileName(path)}", MetaUi.Face.Body, 14f, DimText, 1f);
+                Label caption = MetaUi.Text(Loc.F("gravebuilder.image.preview_caption", "{n} cells \u00b7 {file}", ("n", previewMap.cells.Count), ("file", Path.GetFileName(path))), MetaUi.Face.Body, 14f, DimText, 1f);
                 caption.style.marginTop = 14f;
                 panel.Add(caption);
             }
             catch (Exception e)
             {
-                panel.Add(BodyText_($"Couldn't read '{Path.GetFileName(path)}': {e.Message}"));
+                panel.Add(BodyText_(Loc.F("gravebuilder.image.preview_read_failed", "Couldn't read '{file}': {error}", ("file", Path.GetFileName(path)), ("error", e.Message))));
             }
             finally
             {
@@ -1868,12 +1858,12 @@ namespace GraveBuilder
             row.style.flexWrap = Wrap.Wrap;
             row.style.alignItems = Align.Center;
             row.style.marginBottom = 6f;
-            row.Add(SegmentSwitch("COLOURS", "PALETTE", "LUMINANCE", _imageLuminance, SetImageLuminance, enabled: true, 320f,
-                "PALETTE: each pixel becomes the substrate colour nearest its own (blue, pink, gold, purple); dark or greyish pixels become grey. LUMINANCE: hue is ignored; the image's brightness is stretched to its full range and split into five steps, darkest = layer 5 (Purple), lightest = layer 1 (Grey)."));
-            row.Add(SegmentSwitch("DITHER", "OFF", "ON", _imageDither, v => { _imageDither = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: !_imageLuminance, 200f,
-                "PALETTE only. When on, each pixel's colour error is spread to its neighbours, so gradients and photos read as a mix of colours instead of flat bands. Off matches each pixel on its own."));
-            row.Add(SegmentSwitch("INVERT", "OFF", "ON", _imageInvert, v => { _imageInvert = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: _imageLuminance, 200f,
-                "LUMINANCE only. Flips the brightness steps, so the lightest pixels get the highest layer instead of the darkest."));
+            row.Add(SegmentSwitch(Loc.T("gravebuilder.image.colours_caption", "COLOURS"), Loc.T("gravebuilder.image.colours_palette", "PALETTE"), Loc.T("gravebuilder.image.colours_luminance", "LUMINANCE"), _imageLuminance, SetImageLuminance, enabled: true, 320f,
+                Loc.T("gravebuilder.image.colours_tooltip", "PALETTE: each pixel becomes the substrate colour nearest its own (blue, pink, gold, purple); dark or greyish pixels become grey. LUMINANCE: hue is ignored; the image's brightness is stretched to its full range and split into five steps, darkest = layer 5 (Purple), lightest = layer 1 (Grey).")));
+            row.Add(SegmentSwitch(Loc.T("gravebuilder.image.dither_caption", "DITHER"), Loc.T("gravebuilder.image.dither_off", "OFF"), Loc.T("gravebuilder.image.dither_on", "ON"), _imageDither, v => { _imageDither = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: !_imageLuminance, 200f,
+                Loc.T("gravebuilder.image.dither_tooltip", "PALETTE only. When on, each pixel's colour error is spread to its neighbours, so gradients and photos read as a mix of colours instead of flat bands. Off matches each pixel on its own.")));
+            row.Add(SegmentSwitch(Loc.T("gravebuilder.image.invert_caption", "INVERT"), Loc.T("gravebuilder.image.invert_off", "OFF"), Loc.T("gravebuilder.image.invert_on", "ON"), _imageInvert, v => { _imageInvert = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: _imageLuminance, 200f,
+                Loc.T("gravebuilder.image.invert_tooltip", "LUMINANCE only. Flips the brightness steps, so the lightest pixels get the highest layer instead of the darkest.")));
             _imageOptionsHost.Add(row);
         }
 
@@ -1983,20 +1973,23 @@ namespace GraveBuilder
         // under the list.
         private void BuildLoadPartSection(VisualElement page)
         {
-            page.Add(BodyText_("Saved clipboards (made with COPY/CUT in TOOLS), kept between sessions. Click a part to see it on the right; double-click puts it in the clipboard and takes you back to the map, ready to PASTE. Save the current clipboard as a new part under the list."));
+            page.Add(BodyText_(Loc.T("gravebuilder.parts.intro", "Saved clipboards (made with COPY/CUT in TOOLS), kept between sessions. Click a part to see it on the right; double-click puts it in the clipboard and takes you back to the map, ready to PASTE. Save the current clipboard as a new part under the list.")));
 
             ScrollView partsScroll = ListDetailSplit(page, out VisualElement listFoot, out _partDetailHost, out _partsSummary);
             _partsListHost = partsScroll.contentContainer;
-            listFoot.Add(CompactActionBtn("REFRESH LIST", () =>
+            listFoot.Add(CompactActionBtn(Loc.T("gravebuilder.parts.refresh_list", "REFRESH LIST"), () =>
             {
                 RefreshPartsList();
-                SetStatus($"Found {_partEntries.Count} saved part{(_partEntries.Count == 1 ? "" : "s")}{(_partsSkipped > 0 ? $" ({_partsSkipped} unreadable file{(_partsSkipped == 1 ? "" : "s")} skipped, see the log)" : "")}.");
+                string skipped = (_partsSkipped > 0 ? (_partsSkipped == 1 ? Loc.F("gravebuilder.parts.status_found_skipped_one", " ({n} unreadable file skipped, see the log)", ("n", _partsSkipped)) : Loc.F("gravebuilder.parts.status_found_skipped_other", " ({n} unreadable files skipped, see the log)", ("n", _partsSkipped))) : "");
+                SetStatus(_partEntries.Count == 1
+                    ? Loc.F("gravebuilder.parts.status_found_one", "Found {n} saved part{skipped}.", ("n", _partEntries.Count), ("skipped", skipped))
+                    : Loc.F("gravebuilder.parts.status_found_other", "Found {n} saved parts{skipped}.", ("n", _partEntries.Count), ("skipped", skipped)));
             }));
 
-            listFoot.Add(ListHeader("SAVE THE CLIPBOARD AS A PART"));
+            listFoot.Add(ListHeader(Loc.T("gravebuilder.parts.save_header", "SAVE THE CLIPBOARD AS A PART")));
             // Name over its save button: the list column is too narrow for both on one line.
-            VisualElement partNameWrap = Field("Part name", _partNameText, v => _partNameText = v, out _partNameField);
-            AttachTooltip(partNameWrap, "Also becomes the file name (lowercased, other characters turned into _). Saving under a name that already exists overwrites that part.");
+            VisualElement partNameWrap = Field(Loc.T("gravebuilder.parts.name_label", "Part name"), _partNameText, v => _partNameText = v, out _partNameField);
+            AttachTooltip(partNameWrap, Loc.T("gravebuilder.parts.name_tooltip", "Also becomes the file name (lowercased, other characters turned into _). Saving under a name that already exists overwrites that part."));
             listFoot.Add(partNameWrap);
             _partSaveHost = new VisualElement();
             listFoot.Add(_partSaveHost);
@@ -2007,55 +2000,55 @@ namespace GraveBuilder
         // panel).
         private void BuildExportSection(VisualElement body)
         {
-            body.Add(BodyText_("Saves this map as a contract in content/structures/, live in the game's Contracts list straight away (no RELOAD MODS click needed) — unlike the quick, private test on the MAP panel's SAVE AS SANDBOX OVERRIDE, this publishes a real, selectable contract."));
+            body.Add(BodyText_(Loc.T("gravebuilder.export.intro", "Saves this map as a contract in content/structures/, live in the game's Contracts list straight away (no RELOAD MODS click needed) — unlike the quick, private test on the MAP panel's SAVE AS SANDBOX OVERRIDE, this publishes a real, selectable contract.")));
 
-            body.Add(ListHeader("CONTRACT DETAILS", first: true));
+            body.Add(ListHeader(Loc.T("gravebuilder.export.details_header", "CONTRACT DETAILS"), first: true));
             // ID and name side by side, each with its hint under it; money on its own line.
-            VisualElement idWrap = Field("Contract ID", _idText, v =>
+            VisualElement idWrap = Field(Loc.T("gravebuilder.export.id_label", "Contract ID"), _idText, v =>
             {
                 _idText = v;
                 RefreshExportHints();
             }, out _idField);
-            AttachTooltip(idWrap, "The contract's internal name, and its file name. Lowercase letters, digits and _ only. Exporting with one of your own export's IDs overwrites it.");
+            AttachTooltip(idWrap, Loc.T("gravebuilder.export.id_tooltip", "The contract's internal name, and its file name. Lowercase letters, digits and _ only. Exporting with one of your own export's IDs overwrites it."));
             _idHint = FieldHint();
             VisualElement idCol = new VisualElement();
             idCol.Add(idWrap);
             idCol.Add(_idHint);
 
-            VisualElement nameWrap = Field("Display name", _nameText, v =>
+            VisualElement nameWrap = Field(Loc.T("gravebuilder.export.name_label", "Display name"), _nameText, v =>
             {
                 _nameText = v;
                 RefreshExportHints();
             }, out _nameField);
-            AttachTooltip(nameWrap, "The name shown in the game's Contracts list. Leave it blank to use the ID.");
+            AttachTooltip(nameWrap, Loc.T("gravebuilder.export.name_tooltip", "The name shown in the game's Contracts list. Leave it blank to use the ID."));
             _nameHint = FieldHint();
             VisualElement nameCol = new VisualElement();
             nameCol.Add(nameWrap);
             nameCol.Add(_nameHint);
             body.Add(FieldRow(idCol, nameCol));
 
-            VisualElement moneyWrap = Field("Starting money", _moneyText, v =>
+            VisualElement moneyWrap = Field(Loc.T("gravebuilder.export.money_label", "Starting money"), _moneyText, v =>
             {
                 _moneyText = v;
                 RefreshExportHints();
             }, out _moneyField);
             moneyWrap.style.maxWidth = 560f;
-            AttachTooltip(moneyWrap, "How much money the player starts this contract with. A whole number, 0 or more.");
+            AttachTooltip(moneyWrap, Loc.T("gravebuilder.export.money_tooltip", "How much money the player starts this contract with. A whole number, 0 or more."));
             body.Add(moneyWrap);
             _moneyHint = FieldHint();
             body.Add(_moneyHint);
 
-            body.Add(ListHeader("COLOUR PROGRESSION"));
-            body.Add(BodyText_("One stage per substrate colour — these are the colours you already painted in PALETTE. Each stage's tiles are every cell painted that colour; a colour with nothing painted yet will say so below. Stage 1 unlocks first; each later stage stays sealed until the one before it is cleared. Hover a field for what it does."));
+            body.Add(ListHeader(Loc.T("gravebuilder.export.stages_header", "COLOUR PROGRESSION")));
+            body.Add(BodyText_(Loc.T("gravebuilder.export.stages_intro", "One stage per substrate colour — these are the colours you already painted in PALETTE. Each stage's tiles are every cell painted that colour; a colour with nothing painted yet will say so below. Stage 1 unlocks first; each later stage stays sealed until the one before it is cleared. Hover a field for what it does.")));
             _bandHost = new VisualElement();
             body.Add(_bandHost);
-            body.Add(AttachTooltip(CompactActionBtn("ADD STAGE", () =>
+            body.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.export.add_stage", "ADD STAGE"), () =>
             {
                 _bands.Add(DefaultBand());
                 RebuildBands();
-            }), "Adds another stage at the end (it unlocks after all the others)."));
+            }), Loc.T("gravebuilder.export.add_stage_tooltip", "Adds another stage at the end (it unlocks after all the others).")));
             // Its own line, not beside ADD BAND: it acts on the whole form, not the band list.
-            body.Add(CompactActionBtn("EXPORT AS STRUCTURE", ExportStructure, size: 18f, padX: 44f));
+            body.Add(CompactActionBtn(Loc.T("gravebuilder.export.export_button", "EXPORT AS STRUCTURE"), ExportStructure, size: 18f, padX: 44f));
         }
 
         // Feedback line under a form field, lined up with the field's input (Field's label
@@ -2090,15 +2083,15 @@ namespace GraveBuilder
             string id = raw.ToLowerInvariant();
             if (raw.Length == 0)
             {
-                SetHint(_idHint, "Required: lowercase letters, digits and _ only (e.g. my_map_1).", MetaUi.Crimson);
+                SetHint(_idHint, Loc.T("gravebuilder.export.id_hint_required", "Required: lowercase letters, digits and _ only (e.g. my_map_1)."), MetaUi.Crimson);
             }
             else if (!IdPattern.IsMatch(id))
             {
-                SetHint(_idHint, "Only letters a-z, digits 0-9 and _ are allowed: no spaces, dashes or other symbols.", MetaUi.Crimson);
+                SetHint(_idHint, Loc.T("gravebuilder.export.id_hint_invalid", "Only letters a-z, digits 0-9 and _ are allowed: no spaces, dashes or other symbols."), MetaUi.Crimson);
             }
             else
             {
-                string lower = raw != id ? $"Saved in lowercase as '{id}'. " : "";
+                string lower = raw != id ? Loc.F("gravebuilder.export.id_hint_lowercase", "Saved in lowercase as '{id}'. ", ("id", id)) : "";
                 LoadEntry game = _loadEntries.FirstOrDefault(e => !e.Local && e.Id == id);
                 bool exists = false;
                 try
@@ -2111,30 +2104,30 @@ namespace GraveBuilder
                 }
                 if (game != null)
                 {
-                    SetHint(_idHint, $"{lower}The game structure '{game.Label}' already uses this ID, so the framework will skip your export. Pick another ID.", WarnText);
+                    SetHint(_idHint, Loc.F("gravebuilder.export.id_hint_game_clash", "{lower}The game structure '{label}' already uses this ID, so the framework will skip your export. Pick another ID.", ("lower", lower), ("label", game.Label)), WarnText);
                 }
                 else if (exists)
                 {
-                    SetHint(_idHint, $"{lower}Exporting overwrites your existing export '{id}'.", WarnText);
+                    SetHint(_idHint, Loc.F("gravebuilder.export.id_hint_overwrite", "{lower}Exporting overwrites your existing export '{id}'.", ("lower", lower), ("id", id)), WarnText);
                 }
                 else
                 {
-                    SetHint(_idHint, $"{lower}Writes {id}.json and {id}_cells.json.", DimText);
+                    SetHint(_idHint, Loc.F("gravebuilder.export.id_hint_writes", "{lower}Writes {id}.json and {id}_cells.json.", ("lower", lower), ("id", id)), DimText);
                 }
             }
 
             string name = (_nameText ?? "").Trim();
             SetHint(_nameHint, name.Length == 0
-                ? (IdPattern.IsMatch(id) ? $"Blank: the ID '{id}' is used as the name." : "Blank: the ID is used as the name.")
-                : $"Shown in the Contracts list as {name.ToUpperInvariant()}.", DimText);
+                ? (IdPattern.IsMatch(id) ? Loc.F("gravebuilder.export.name_hint_blank_id", "Blank: the ID '{id}' is used as the name.", ("id", id)) : Loc.T("gravebuilder.export.name_hint_blank", "Blank: the ID is used as the name."))
+                : Loc.F("gravebuilder.export.name_hint_shown", "Shown in the Contracts list as {name}.", ("name", name.ToUpperInvariant())), DimText);
 
             if (!int.TryParse((_moneyText ?? "").Trim(), out int money) || money < 0)
             {
-                SetHint(_moneyHint, "Must be a whole number, 0 or more (digits only, no commas).", MetaUi.Crimson);
+                SetHint(_moneyHint, Loc.T("gravebuilder.export.money_hint_invalid", "Must be a whole number, 0 or more (digits only, no commas)."), MetaUi.Crimson);
             }
             else
             {
-                SetHint(_moneyHint, $"The player starts with {money}.", DimText);
+                SetHint(_moneyHint, Loc.F("gravebuilder.export.money_hint", "The player starts with {money}.", ("money", money)), DimText);
             }
         }
 
@@ -2148,9 +2141,9 @@ namespace GraveBuilder
         {
             return new List<PanelDef>
             {
-                new PanelDef { Id = PanelPalette, Label = "PALETTE", Width = 480f, Build = BuildPalette },
-                new PanelDef { Id = PanelTools, Label = "TOOLS", Width = 620f, Build = BuildTools },
-                new PanelDef { Id = PanelMap, Label = "MAP", Width = 640f, AnchorRight = true, Build = BuildMap },
+                new PanelDef { Id = PanelPalette, Label = Loc.T("gravebuilder.panels.palette", "PALETTE"), Width = 480f, Build = BuildPalette },
+                new PanelDef { Id = PanelTools, Label = Loc.T("gravebuilder.panels.tools", "TOOLS"), Width = 620f, Build = BuildTools },
+                new PanelDef { Id = PanelMap, Label = Loc.T("gravebuilder.panels.map", "MAP"), Width = 640f, AnchorRight = true, Build = BuildMap },
             };
         }
 
@@ -2416,11 +2409,11 @@ namespace GraveBuilder
         // of their own.
         private VisualElement ResetViewBtn()
         {
-            return AttachTooltip(ActionBtn("RESET VIEW", () =>
+            return AttachTooltip(ActionBtn(Loc.T("gravebuilder.screen.reset_view", "RESET VIEW"), () =>
             {
                 _canvas.ResetView();
-                SetStatus("View reset (zoom 1x, no pan).");
-            }), "Back to zoom 1x, centred. Mouse wheel zooms towards the cursor; middle-drag pans.");
+                SetStatus(Loc.T("gravebuilder.status.view_reset", "View reset (zoom 1x, no pan)."));
+            }), Loc.T("gravebuilder.screen.reset_view_tooltip", "Back to zoom 1x, centred. Mouse wheel zooms towards the cursor; middle-drag pans."));
         }
 
         // PALETTE: substrate layers + both special-tile groups + erase.
@@ -2433,9 +2426,9 @@ namespace GraveBuilder
             // deal only a fraction (ColourRules._family + ColourMath.Mult, verified 2026-11-22
             // against ColourRules.cs/ColourMath.cs). Layer 1 (Black) has no resistance at all —
             // Mult always returns full damage against it, whatever the attacker.
-            content.Add(Head("PALETTE", first: true));
-            content.Add(SubHead("SUBSTRATE LAYERS"));
-            content.Add(BodyText_("Each layer resists every weapon type except the one named on its swatch, which still does full damage; Layer 1 has no resistance at all."));
+            content.Add(Head(Loc.T("gravebuilder.palette.head", "PALETTE"), first: true));
+            content.Add(SubHead(Loc.T("gravebuilder.palette.substrate_header", "SUBSTRATE LAYERS")));
+            content.Add(BodyText_(Loc.T("gravebuilder.palette.substrate_body", "Each layer resists every weapon type except the one named on its swatch, which still does full damage; Layer 1 has no resistance at all.")));
             VisualElement swatches = Row();
             swatches.style.flexWrap = Wrap.Wrap;
             for (int layer = 1; layer <= 5; layer++)
@@ -2448,17 +2441,17 @@ namespace GraveBuilder
             // Always-visible legend, not just the swatches' hover text — confirmed live
             // (2026-11-24) that a first-time player never thinks to hover these to learn which
             // colour resists which weapon.
-            content.Add(BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => $"{LayerColourName(l)}: {LayerCaption(l)}"))));
+            content.Add(BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => Loc.F("gravebuilder.palette.layer_legend_item", "{colour}: {caption}", ("colour", LayerColourName(l)), ("caption", LayerCaption(l)))))));
 
             // Palette: special tiles, split into the two groups the game's own tile data
             // distinguishes by "role" (gamedata_tiles.json, verified 2026-11-22): "behavior"
             // tiles seed a hidden enemy encounter, "material" tiles seed an extra resource
             // pickup. Labels are the game's own tile "label" field, Title Case, not SCREAMING_
             // SNAKE_CASE with the underscore left in (that was the old ToUpperInvariant() text).
-            content.Add(SubHead("SPECIAL TILES"));
+            content.Add(SubHead(Loc.T("gravebuilder.palette.special_header", "SPECIAL TILES")));
 
-            content.Add(GroupLabel("ENEMY ENCOUNTERS"));
-            content.Add(BodyText_("Paints a hidden enemy marker. Destroying this tile (or mining close to it) wakes the enemy it hides."));
+            content.Add(GroupLabel(Loc.T("gravebuilder.palette.enemy_header", "ENEMY ENCOUNTERS")));
+            content.Add(BodyText_(Loc.T("gravebuilder.palette.enemy_body", "Paints a hidden enemy marker. Destroying this tile (or mining close to it) wakes the enemy it hides.")));
             VisualElement behaviorTiles = Row();
             behaviorTiles.style.flexWrap = Wrap.Wrap;
             for (int i = 0; i < BehaviorTileCount; i++)
@@ -2469,8 +2462,8 @@ namespace GraveBuilder
             }
             content.Add(behaviorTiles);
 
-            content.Add(GroupLabel("RESOURCE PICKUPS"));
-            content.Add(BodyText_("Seeds an extra resource pickup into this tile to mine."));
+            content.Add(GroupLabel(Loc.T("gravebuilder.palette.resource_header", "RESOURCE PICKUPS")));
+            content.Add(BodyText_(Loc.T("gravebuilder.palette.resource_body", "Seeds an extra resource pickup into this tile to mine.")));
             VisualElement materialTiles = Row();
             materialTiles.style.flexWrap = Wrap.Wrap;
             for (int i = BehaviorTileCount; i < SpecialTiles.Length; i++)
@@ -2479,18 +2472,18 @@ namespace GraveBuilder
                 Color c = MarkerColour(t);
                 materialTiles.Add(ToolHolder(t, MetaUi.Key(SpecialTileLabel[t], () => SelectTool(t, _layer), 196f, c), c));
             }
-            materialTiles.Add(ToolHolder(Erase, MetaUi.Key("ERASE", () => SelectTool(Erase, _layer), 196f, MetaUi.Crimson), MetaUi.Crimson));
+            materialTiles.Add(ToolHolder(Erase, MetaUi.Key(Loc.T("gravebuilder.palette.erase", "ERASE"), () => SelectTool(Erase, _layer), 196f, MetaUi.Crimson), MetaUi.Crimson));
             content.Add(materialTiles);
-            content.Add(BodyText_("Left-drag paints the selected tool. Right-drag erases. Special tiles keep the cell's existing layer colour."));
+            content.Add(BodyText_(Loc.T("gravebuilder.palette.paint_help", "Left-drag paints the selected tool. Right-drag erases. Special tiles keep the cell's existing layer colour.")));
         }
 
         // TOOLS: brush size (shared control, see BuildBrushControl), fill/mirror, undo/redo,
         // reset view, selection & clipboard.
         private void BuildTools(VisualElement content)
         {
-            content.Add(Head("TOOLS", first: true));
+            content.Add(Head(Loc.T("gravebuilder.tools.head", "TOOLS"), first: true));
             BuildBrushControl(content);
-            content.Add(BodyText_("These change how your next paint stroke behaves — hover any button for exactly what it does."));
+            content.Add(BodyText_(Loc.T("gravebuilder.tools.intro", "These change how your next paint stroke behaves — hover any button for exactly what it does.")));
             // Column: FILL/MIRROR pair, then LINE/CIRCLE pair (RefreshToggles).
             _toggleRow = new VisualElement();
             content.Add(_toggleRow);
@@ -2500,8 +2493,8 @@ namespace GraveBuilder
 
             // Selection & clipboard. How each button works is its hover text (RefreshToggles /
             // RefreshClipboardButtons).
-            content.Add(SubHead("SELECTION & CLIPBOARD"));
-            content.Add(BodyText_("Select cells, then copy/cut/paste them elsewhere on the map."));
+            content.Add(SubHead(Loc.T("gravebuilder.tools.selection_header", "SELECTION & CLIPBOARD")));
+            content.Add(BodyText_(Loc.T("gravebuilder.tools.selection_body", "Select cells, then copy/cut/paste them elsewhere on the map.")));
             _selectRow = Row();
             content.Add(_selectRow);
             _loopRow = new VisualElement();
@@ -2513,20 +2506,20 @@ namespace GraveBuilder
         // MAP: radius, new filled/empty, grow, sandbox-override actions.
         private void BuildMap(VisualElement content)
         {
-            content.Add(Head("MAP", first: true));
+            content.Add(Head(Loc.T("gravebuilder.map.head", "MAP"), first: true));
             BuildRadiusControl(content);
             content.Add(PairRow(
-                ActionBtn("NEW (FILLED)", () => NewMap(filled: true)),
-                ActionBtn("NEW (EMPTY)", () => NewMap(filled: false))));
-            content.Add(ActionBtn("GROW TO RADIUS", GrowToRadius));
-            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use the EXPORT tab (STRUCTURES & PARTS, bottom bar) to publish a map properly instead."));
-            content.Add(AttachTooltip(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride),
-                "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list."));
+                ActionBtn(Loc.T("gravebuilder.map.new_filled", "NEW (FILLED)"), () => NewMap(filled: true)),
+                ActionBtn(Loc.T("gravebuilder.map.new_empty", "NEW (EMPTY)"), () => NewMap(filled: false))));
+            content.Add(ActionBtn(Loc.T("gravebuilder.map.grow_to_radius", "GROW TO RADIUS"), GrowToRadius));
+            content.Add(BodyText_(Loc.T("gravebuilder.map.override_intro", "Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use the EXPORT tab (STRUCTURES & PARTS, bottom bar) to publish a map properly instead.")));
+            content.Add(AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.save_override", "SAVE AS SANDBOX OVERRIDE"), SaveOverride),
+                Loc.T("gravebuilder.map.save_override_tooltip", "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list.")));
             content.Add(PairRow(
-                AttachTooltip(ActionBtn("LOAD OVERRIDE", LoadOverride),
-                    "Loads the saved override back into this editor, replacing the current map (can be undone)."),
-                AttachTooltip(ActionBtn("REMOVE OVERRIDE", RemoveOverride),
-                    "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged.")));
+                AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.load_override", "LOAD OVERRIDE"), LoadOverride),
+                    Loc.T("gravebuilder.map.load_override_tooltip", "Loads the saved override back into this editor, replacing the current map (can be undone).")),
+                AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.remove_override", "REMOVE OVERRIDE"), RemoveOverride),
+                    Loc.T("gravebuilder.map.remove_override_tooltip", "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged."))));
         }
 
         private static bool FillActive => _fillMode;
@@ -2561,7 +2554,7 @@ namespace GraveBuilder
 
         private void BuildBrushControl(VisualElement content)
         {
-            Label caption = MetaUi.Text($"Brush size (1-{MaxBrush + BrushDisplayOffset}): cells around the cursor, 1 = one cell", MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
+            Label caption = MetaUi.Text(Loc.F("gravebuilder.tools.brush_caption", "Brush size (1-{max}): cells around the cursor, 1 = one cell", ("max", MaxBrush + BrushDisplayOffset)), MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
             caption.style.marginBottom = 4f;
             content.Add(caption);
 
@@ -2611,7 +2604,7 @@ namespace GraveBuilder
         // function), over the existing _radiusText state ReadRadius already parses/clamps from.
         private void BuildRadiusControl(VisualElement content)
         {
-            Label caption = MetaUi.Text($"Radius ({MinRadius}-{MaxRadius}): size of a new map, or the target for GROW TO RADIUS", MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
+            Label caption = MetaUi.Text(Loc.F("gravebuilder.map.radius_caption", "Radius ({min}-{max}): size of a new map, or the target for GROW TO RADIUS", ("min", MinRadius), ("max", MaxRadius)), MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
             caption.style.marginBottom = 4f;
             content.Add(caption);
 
@@ -2788,12 +2781,12 @@ namespace GraveBuilder
         {
             switch (layer)
             {
-                case 1: return "Grey";
-                case 2: return "Blue";
-                case 3: return "Pink";
-                case 4: return "Gold";
-                case 5: return "Purple";
-                default: return "Layer " + layer;
+                case 1: return Loc.T("gravebuilder.tiles.layer_grey", "Grey");
+                case 2: return Loc.T("gravebuilder.tiles.layer_blue", "Blue");
+                case 3: return Loc.T("gravebuilder.tiles.layer_pink", "Pink");
+                case 4: return Loc.T("gravebuilder.tiles.layer_gold", "Gold");
+                case 5: return Loc.T("gravebuilder.tiles.layer_purple", "Purple");
+                default: return Loc.F("gravebuilder.tiles.layer_other", "Layer {layer}", ("layer", layer));
             }
         }
 
@@ -2807,11 +2800,11 @@ namespace GraveBuilder
         {
             switch (layer)
             {
-                case 1: return "No resistance — every weapon at full damage";
-                case 2: return "Full dmg: Dynamo weapons only";
-                case 3: return "Full dmg: Cannon & Drill weapons only";
-                case 4: return "Full dmg: Laser weapons only";
-                case 5: return "Full dmg: Pulse weapons only";
+                case 1: return Loc.T("gravebuilder.tiles.layer_caption_1", "No resistance — every weapon at full damage");
+                case 2: return Loc.T("gravebuilder.tiles.layer_caption_2", "Full dmg: Dynamo weapons only");
+                case 3: return Loc.T("gravebuilder.tiles.layer_caption_3", "Full dmg: Cannon & Drill weapons only");
+                case 4: return Loc.T("gravebuilder.tiles.layer_caption_4", "Full dmg: Laser weapons only");
+                case 5: return Loc.T("gravebuilder.tiles.layer_caption_5", "Full dmg: Pulse weapons only");
                 default: return "";
             }
         }
@@ -3036,18 +3029,18 @@ namespace GraveBuilder
             _toggleRow.Clear();
             _toggleRow.Add(PairRow(
                 AttachTooltip(
-                    ActionBtn(_fillMode ? "FILL MODE: ON" : "FILL MODE: OFF", ToggleFill, family: _fillMode ? Accent : Neutral, pulse: _fillMode),
-                    "When on, one left click floods every connected cell matching the clicked one with the selected tool. Right-click floods erase instead."),
+                    ActionBtn(_fillMode ? Loc.T("gravebuilder.tools.fill_on", "FILL MODE: ON") : Loc.T("gravebuilder.tools.fill_off", "FILL MODE: OFF"), ToggleFill, family: _fillMode ? Accent : Neutral, pulse: _fillMode),
+                    Loc.T("gravebuilder.tools.fill_tooltip", "When on, one left click floods every connected cell matching the clicked one with the selected tool. Right-click floods erase instead.")),
                 AttachTooltip(
-                    ActionBtn(_mirror ? "MIRROR (180°): ON" : "MIRROR (180°): OFF", ToggleMirror, family: _mirror ? Accent : Neutral, pulse: _mirror),
-                    "When on, every paint, erase, fill, line and circle is repeated on the opposite side of the map, rotated 180° about the centre (Q R becomes -Q -R).")));
+                    ActionBtn(_mirror ? Loc.T("gravebuilder.tools.mirror_on", "MIRROR (180°): ON") : Loc.T("gravebuilder.tools.mirror_off", "MIRROR (180°): OFF"), ToggleMirror, family: _mirror ? Accent : Neutral, pulse: _mirror),
+                    Loc.T("gravebuilder.tools.mirror_tooltip", "When on, every paint, erase, fill, line and circle is repeated on the opposite side of the map, rotated 180° about the centre (Q R becomes -Q -R)."))));
             _toggleRow.Add(PairRow(
                 AttachTooltip(
-                    ActionBtn(_lineMode ? "LINE: ON" : "LINE: OFF", ToggleLine, family: _lineMode ? Accent : Neutral, pulse: _lineMode),
-                    "When on, left-drag draws a straight line from where you pressed to the cursor with the selected tool, at the current brush size; it's painted when you let go (one undo step). Right-drag draws an erasing line. Turns fill mode, select and circle off."),
+                    ActionBtn(_lineMode ? Loc.T("gravebuilder.tools.line_on", "LINE: ON") : Loc.T("gravebuilder.tools.line_off", "LINE: OFF"), ToggleLine, family: _lineMode ? Accent : Neutral, pulse: _lineMode),
+                    Loc.T("gravebuilder.tools.line_tooltip", "When on, left-drag draws a straight line from where you pressed to the cursor with the selected tool, at the current brush size; it's painted when you let go (one undo step). Right-drag draws an erasing line. Turns fill mode, select and circle off.")),
                 AttachTooltip(
-                    ActionBtn(_circleMode ? "CIRCLE: ON" : "CIRCLE: OFF", ToggleCircle, family: _circleMode ? Accent : Neutral, pulse: _circleMode),
-                    "When on, press to set the centre and drag outwards to size a filled circle; it's painted with the selected tool when you let go (one undo step). Right-drag erases a circle. Brush size doesn't apply. Turns fill mode, select and line off.")));
+                    ActionBtn(_circleMode ? Loc.T("gravebuilder.tools.circle_on", "CIRCLE: ON") : Loc.T("gravebuilder.tools.circle_off", "CIRCLE: OFF"), ToggleCircle, family: _circleMode ? Accent : Neutral, pulse: _circleMode),
+                    Loc.T("gravebuilder.tools.circle_tooltip", "When on, press to set the centre and drag outwards to size a filled circle; it's painted with the selected tool when you let go (one undo step). Right-drag erases a circle. Brush size doesn't apply. Turns fill mode, select and line off."))));
         }
 
         private void RefreshHistoryButtons()
@@ -3058,10 +3051,13 @@ namespace GraveBuilder
             }
             _historyRow.Clear();
             VisualElement row = PairRow(
-                AttachTooltip(ActionBtn(_undo.Count > 0 ? $"UNDO ({_undo.Count})" : "UNDO", Undo, enabled: _undo.Count > 0),
-                    "Steps back one action. Shortcut: Ctrl+Z."),
-                AttachTooltip(ActionBtn(_redo.Count > 0 ? $"REDO ({_redo.Count})" : "REDO", Redo, enabled: _redo.Count > 0),
-                    "Re-applies the last undone action. Shortcut: Ctrl+Y or Ctrl+Shift+Z."));
+                AttachTooltip(ActionBtn(_undo.Count > 0 ? Loc.F("gravebuilder.tools.undo_count", "UNDO ({n})", ("n", _undo.Count)) : Loc.T("gravebuilder.tools.undo", "UNDO"), Undo, enabled: _undo.Count > 0),
+                    Loc.F("gravebuilder.tools.undo_tooltip", "Steps back one action. Shortcut: {combo}.",
+                        ("combo", ShortcutBindings.ComboText(ShortcutBindings.Undo) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound")))),
+                AttachTooltip(ActionBtn(_redo.Count > 0 ? Loc.F("gravebuilder.tools.redo_count", "REDO ({n})", ("n", _redo.Count)) : Loc.T("gravebuilder.tools.redo", "REDO"), Redo, enabled: _redo.Count > 0),
+                    Loc.F("gravebuilder.tools.redo_tooltip", "Re-applies the last undone action. Shortcut: {combo} or Ctrl+Shift+{undoKey}.",
+                        ("combo", ShortcutBindings.ComboText(ShortcutBindings.Redo) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound")),
+                        ("undoKey", ShortcutBindings.KeyText(ShortcutBindings.Get(ShortcutBindings.Undo))))));
             row.style.flexGrow = 1f;
             _historyRow.Add(row);
         }
@@ -3073,7 +3069,7 @@ namespace GraveBuilder
             RefreshToggles();
             // The brush-footprint preview hides in fill mode.
             _canvas?.Repaint();
-            SetStatus(_fillMode ? $"Fill mode on: a click flood-fills the connected region.{Suffix(off)}" : "Fill mode off: brush painting.");
+            SetStatus(_fillMode ? Loc.F("gravebuilder.status.fill_on", "Fill mode on: a click flood-fills the connected region.{note}", ("note", Suffix(off))) : Loc.T("gravebuilder.status.fill_off", "Fill mode off: brush painting."));
         }
 
         // ---- line & circle tools ------------------------------------------------------
@@ -3093,10 +3089,10 @@ namespace GraveBuilder
         // Turns LINE/CIRCLE off; returns a status note naming what was turned off, or null.
         private static string TurnOffShapeTools()
         {
-            string off = _lineMode ? "Line" : _circleMode ? "Circle" : null;
+            string off = _lineMode ? Loc.T("gravebuilder.status.turned_off_shape_line", "Line") : _circleMode ? Loc.T("gravebuilder.status.turned_off_shape_circle", "Circle") : null;
             _lineMode = false;
             _circleMode = false;
-            return off == null ? null : off + " turned off.";
+            return off == null ? null : Loc.F("gravebuilder.status.turned_off_shape", "{shape} turned off.", ("shape", off));
         }
 
         private static string Suffix(string note) => string.IsNullOrEmpty(note) ? "" : " " + note;
@@ -3114,23 +3110,23 @@ namespace GraveBuilder
             {
                 if (shape == HexShape.Line && _circleMode)
                 {
-                    off.Add("circle");
+                    off.Add(Loc.T("gravebuilder.status.turned_off_item_circle", "circle"));
                 }
                 if (shape == HexShape.Circle && _lineMode)
                 {
-                    off.Add("line");
+                    off.Add(Loc.T("gravebuilder.status.turned_off_item_line", "line"));
                 }
                 if (_fillMode)
                 {
-                    off.Add("fill mode");
+                    off.Add(Loc.T("gravebuilder.status.turned_off_item_fill_mode", "fill mode"));
                 }
                 if (_selectMode)
                 {
-                    off.Add("select");
+                    off.Add(Loc.T("gravebuilder.status.turned_off_item_select", "select"));
                 }
                 if (PasteModeActive)
                 {
-                    off.Add("paste placement");
+                    off.Add(Loc.T("gravebuilder.status.turned_off_item_paste_placement", "paste placement"));
                 }
                 _fillMode = false;
                 _selectMode = false;
@@ -3141,18 +3137,18 @@ namespace GraveBuilder
             RefreshToggles();
             RefreshClipboardButtons();
             _canvas?.Repaint();
-            string note = off.Count > 0 ? $" Turned off: {string.Join(", ", off)}." : "";
+            string note = off.Count > 0 ? Loc.F("gravebuilder.status.turned_off_list", " Turned off: {list}.", ("list", string.Join(", ", off))) : "";
             if (shape == HexShape.Line)
             {
                 SetStatus(on
-                    ? $"Line on: drag from start to end; it's painted on release at the current brush size. Right-drag erases.{note}"
-                    : "Line off: brush painting.");
+                    ? Loc.F("gravebuilder.status.line_on", "Line on: drag from start to end; it's painted on release at the current brush size. Right-drag erases.{note}", ("note", note))
+                    : Loc.T("gravebuilder.status.line_off", "Line off: brush painting."));
             }
             else
             {
                 SetStatus(on
-                    ? $"Circle on: press at the centre and drag outwards; it's painted on release. Right-drag erases.{note}"
-                    : "Circle off: brush painting.");
+                    ? Loc.F("gravebuilder.status.circle_on", "Circle on: press at the centre and drag outwards; it's painted on release. Right-drag erases.{note}", ("note", note))
+                    : Loc.T("gravebuilder.status.circle_off", "Circle off: brush painting."));
             }
         }
 
@@ -3230,25 +3226,29 @@ namespace GraveBuilder
             }
             HashSet<Vector2Int> cells = new HashSet<Vector2Int>();
             ShapeFootprint(shape, start, end, cells);
-            string what = shape == HexShape.Line ? "Line" : "Circle";
-            BeginAction(erase ? what + " erase" : what);
+            string what = shape == HexShape.Line ? Loc.T("gravebuilder.history.line", "Line") : Loc.T("gravebuilder.history.circle", "Circle");
+            BeginAction(erase ? Loc.F("gravebuilder.history.shape_erase", "{shape} erase", ("shape", what)) : what);
             bool changed = false;
             foreach (Vector2Int c in cells)
             {
                 changed |= PaintOne(c.x, c.y, erase);
             }
             CommitAction();
-            string mirrored = MirrorActive ? ", mirrored" : "";
+            string mirrored = MirrorActive ? Loc.T("gravebuilder.status.shape_mirrored_note", ", mirrored") : "";
             if (changed)
             {
                 UpdateStatsNow();
                 SetStatus(shape == HexShape.Line
-                    ? $"{(erase ? "Erased" : "Drew")} a line from Q {start.x} R {start.y} to Q {end.x} R {end.y} ({cells.Count} cells{mirrored}, one undo step)."
-                    : $"{(erase ? "Erased" : "Drew")} a circle of radius {CircleRadius(start, end)} at Q {start.x} R {start.y} ({cells.Count} cells{mirrored}, one undo step).");
+                    ? (erase
+                        ? Loc.F("gravebuilder.status.line_erased", "Erased a line from Q {q1} R {r1} to Q {q2} R {r2} ({n} cells{mirrored}, one undo step).", ("q1", start.x), ("r1", start.y), ("q2", end.x), ("r2", end.y), ("n", cells.Count), ("mirrored", mirrored))
+                        : Loc.F("gravebuilder.status.line_drawn", "Drew a line from Q {q1} R {r1} to Q {q2} R {r2} ({n} cells{mirrored}, one undo step).", ("q1", start.x), ("r1", start.y), ("q2", end.x), ("r2", end.y), ("n", cells.Count), ("mirrored", mirrored)))
+                    : (erase
+                        ? Loc.F("gravebuilder.status.circle_erased", "Erased a circle of radius {radius} at Q {q} R {r} ({n} cells{mirrored}, one undo step).", ("radius", CircleRadius(start, end)), ("q", start.x), ("r", start.y), ("n", cells.Count), ("mirrored", mirrored))
+                        : Loc.F("gravebuilder.status.circle_drawn", "Drew a circle of radius {radius} at Q {q} R {r} ({n} cells{mirrored}, one undo step).", ("radius", CircleRadius(start, end)), ("q", start.x), ("r", start.y), ("n", cells.Count), ("mirrored", mirrored))));
             }
             else
             {
-                SetStatus($"Nothing changed: the {what.ToLowerInvariant()} matches what's already there.");
+                SetStatus(Loc.F("gravebuilder.status.shape_unchanged", "Nothing changed: the {shape} matches what's already there.", ("shape", what.ToLowerInvariant())));
             }
             return changed;
         }
@@ -3270,7 +3270,7 @@ namespace GraveBuilder
             RefreshToggles();
             // The brush-footprint preview includes the mirrored cells.
             _canvas?.Repaint();
-            SetStatus(_mirror ? "Mirror on: every edit is repeated at (-q, -r)." : "Mirror off.");
+            SetStatus(_mirror ? Loc.T("gravebuilder.status.mirror_on", "Mirror on: every edit is repeated at (-q, -r).") : Loc.T("gravebuilder.status.mirror_off", "Mirror off."));
         }
 
         // ---- selection & clipboard ----------------------------------------------------
@@ -3290,11 +3290,11 @@ namespace GraveBuilder
                 _selectRow.Clear();
                 VisualElement row = PairRow(
                     AttachTooltip(
-                        ActionBtn(_selectMode ? "SELECT: ON" : "SELECT: OFF", ToggleSelect, family: _selectMode ? Accent : Neutral, pulse: _selectMode),
-                        "When on, left-drag adds cells to the selection and right-drag removes them (brush size applies). Painting is paused while it's on."),
+                        ActionBtn(_selectMode ? Loc.T("gravebuilder.tools.select_on", "SELECT: ON") : Loc.T("gravebuilder.tools.select_off", "SELECT: OFF"), ToggleSelect, family: _selectMode ? Accent : Neutral, pulse: _selectMode),
+                        Loc.T("gravebuilder.tools.select_tooltip", "When on, left-drag adds cells to the selection and right-drag removes them (brush size applies). Painting is paused while it's on.")),
                     AttachTooltip(
-                        ActionBtn(_selection.Count > 0 ? $"CLEAR SELECTION ({_selection.Count})" : "CLEAR SELECTION", ClearSelection, enabled: _selection.Count > 0),
-                        "Deselects every cell. The map itself isn't changed."));
+                        ActionBtn(_selection.Count > 0 ? Loc.F("gravebuilder.tools.clear_selection_count", "CLEAR SELECTION ({n})", ("n", _selection.Count)) : Loc.T("gravebuilder.tools.clear_selection", "CLEAR SELECTION"), ClearSelection, enabled: _selection.Count > 0),
+                        Loc.T("gravebuilder.tools.clear_selection_tooltip", "Deselects every cell. The map itself isn't changed.")));
                 row.style.flexGrow = 1f;
                 _selectRow.Add(row);
             }
@@ -3302,8 +3302,8 @@ namespace GraveBuilder
             {
                 _loopRow.Clear();
                 _loopRow.Add(AttachTooltip(
-                    ActionBtn(_autoFillLoops ? "AUTO-FILL LOOPS: ON" : "AUTO-FILL LOOPS: OFF", ToggleAutoFillLoops, family: _autoFillLoops ? Accent : Neutral, pulse: _autoFillLoops),
-                    "When on, each time you finish a SELECT left-drag, any cells the selection completely surrounds are selected too, so drawing a closed outline selects its inside. Right-drags (removing) never auto-fill."));
+                    ActionBtn(_autoFillLoops ? Loc.T("gravebuilder.tools.auto_fill_loops_on", "AUTO-FILL LOOPS: ON") : Loc.T("gravebuilder.tools.auto_fill_loops_off", "AUTO-FILL LOOPS: OFF"), ToggleAutoFillLoops, family: _autoFillLoops ? Accent : Neutral, pulse: _autoFillLoops),
+                    Loc.T("gravebuilder.tools.auto_fill_loops_tooltip", "When on, each time you finish a SELECT left-drag, any cells the selection completely surrounds are selected too, so drawing a closed outline selects its inside. Right-drags (removing) never auto-fill.")));
             }
             if (_clipRow != null)
             {
@@ -3311,18 +3311,21 @@ namespace GraveBuilder
                 bool any = _selection.Count > 0;
                 _clipRow.Add(PairRow(
                     AttachTooltip(
-                        ActionBtn("COPY", Copy, enabled: any),
-                        "Copies every selected cell to the clipboard, empty ones included (those erase when pasted). The map isn't changed. Shortcut: Ctrl+C."),
+                        ActionBtn(Loc.T("gravebuilder.tools.copy", "COPY"), Copy, enabled: any),
+                        Loc.F("gravebuilder.tools.copy_tooltip", "Copies every selected cell to the clipboard, empty ones included (those erase when pasted). The map isn't changed. Shortcut: {combo}.",
+                            ("combo", ShortcutBindings.ComboText(ShortcutBindings.Copy) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound")))),
                     AttachTooltip(
-                        ActionBtn("CUT", Cut, enabled: any),
-                        "Copies every selected cell to the clipboard, empty ones included, then erases them from the map (one undo step). Shortcut: Ctrl+X.")));
+                        ActionBtn(Loc.T("gravebuilder.tools.cut", "CUT"), Cut, enabled: any),
+                        Loc.F("gravebuilder.tools.cut_tooltip", "Copies every selected cell to the clipboard, empty ones included, then erases them from the map (one undo step). Shortcut: {combo}.",
+                            ("combo", ShortcutBindings.ComboText(ShortcutBindings.Cut) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound"))))));
                 bool placing = PasteModeActive;
                 string pasteLabel = placing
-                    ? "CANCEL PASTE"
-                    : (_clipboard.Count > 0 ? $"PASTE ({_clipboard.Count} CELLS)" : "PASTE");
+                    ? Loc.T("gravebuilder.tools.cancel_paste", "CANCEL PASTE")
+                    : (_clipboard.Count > 0 ? Loc.F("gravebuilder.tools.paste_count", "PASTE ({n} CELLS)", ("n", _clipboard.Count)) : Loc.T("gravebuilder.tools.paste", "PASTE"));
                 _clipRow.Add(AttachTooltip(
                     ActionBtn(pasteLabel, TogglePaste, enabled: placing || _clipboard.Count > 0, family: placing ? Accent : (Color?)null, pulse: placing),
-                    "Each left click on the map stamps the clipboard centred on the cursor (empty cells erase) and stays ready for another. Right-click or CANCEL PASTE stops. Shortcut: Ctrl+V."));
+                    Loc.F("gravebuilder.tools.paste_tooltip", "Each left click on the map stamps the clipboard centred on the cursor (empty cells erase) and stays ready for another. Right-click or CANCEL PASTE stops. Shortcut: {combo}.",
+                        ("combo", ShortcutBindings.ComboText(ShortcutBindings.Paste) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound")))));
             }
             // The PARTS tab's save button follows the clipboard too (every clipboard change ends here).
             RefreshPartSaveButton();
@@ -3349,8 +3352,8 @@ namespace GraveBuilder
             _canvas?.Repaint();
             RefreshClipboardButtons();
             SetStatus(_selectMode
-                ? $"Select on: left-drag adds cells to the selection, right-drag removes them; painting is paused.{(cancelled ? " Paste placement cancelled." : "")}{Suffix(off)}"
-                : "Select off: brush painting. The selection is kept for COPY/CUT.");
+                ? Loc.F("gravebuilder.status.select_on", "Select on: left-drag adds cells to the selection, right-drag removes them; painting is paused.{cancelled}{note}", ("cancelled", cancelled ? Loc.T("gravebuilder.status.select_on_paste_cancelled", " Paste placement cancelled.") : ""), ("note", Suffix(off)))
+                : Loc.T("gravebuilder.status.select_off", "Select off: brush painting. The selection is kept for COPY/CUT."));
         }
 
         private void ClearSelection()
@@ -3359,7 +3362,7 @@ namespace GraveBuilder
             _selection.Clear();
             _canvas?.Repaint();
             RefreshClipboardButtons();
-            SetStatus(n > 0 ? $"Cleared the selection ({n} cells)." : "Nothing is selected.");
+            SetStatus(n > 0 ? Loc.F("gravebuilder.status.selection_cleared", "Cleared the selection ({n} cells).", ("n", n)) : Loc.T("gravebuilder.status.selection_clear_nothing", "Nothing is selected."));
         }
 
         // Snapshot every selected cell (inside the extent), empty ones included. Returns the
@@ -3392,12 +3395,12 @@ namespace GraveBuilder
             int n = CopySelection();
             if (n == 0)
             {
-                SetStatus("Nothing selected to copy. Turn SELECT on and drag over the cells first.", error: true);
+                SetStatus(Loc.T("gravebuilder.status.copy_nothing", "Nothing selected to copy. Turn SELECT on and drag over the cells first."), error: true);
                 return;
             }
             int empty = _clipboard.Count(c => !c.Cell.HasValue);
             RefreshClipboardButtons();
-            SetStatus($"Copied {n} cells{(empty > 0 ? $" ({empty} empty, which erase when pasted)" : "")}. Press PASTE to stamp them.");
+            SetStatus(Loc.F("gravebuilder.status.copied", "Copied {n} cells{empty_note}. Press PASTE to stamp them.", ("n", n), ("empty_note", empty > 0 ? Loc.F("gravebuilder.status.copied_empty_note", " ({empty} empty, which erase when pasted)", ("empty", empty)) : "")));
         }
 
         // Copy, then erase every selected cell as one undoable action, then clear the selection.
@@ -3411,12 +3414,12 @@ namespace GraveBuilder
             int n = CopySelection();
             if (n == 0)
             {
-                SetStatus("Nothing selected to cut. Turn SELECT on and drag over the cells first.", error: true);
+                SetStatus(Loc.T("gravebuilder.status.cut_nothing", "Nothing selected to cut. Turn SELECT on and drag over the cells first."), error: true);
                 return;
             }
             // Same erase path as the brush (SandboxMap.Paint "erase"), no mirror: Cut acts on
             // exactly the cells it copied.
-            BeginAction("Cut");
+            BeginAction(Loc.T("gravebuilder.history.cut", "Cut"));
             foreach (Vector2Int c in _selection)
             {
                 if (_canvas.InExtent(c.x, c.y))
@@ -3430,7 +3433,7 @@ namespace GraveBuilder
             _canvas.Refresh();
             UpdateStatsNow();
             RefreshClipboardButtons();
-            SetStatus($"Cut {n} cells to the clipboard (one undo step). Press PASTE to stamp them.");
+            SetStatus(Loc.F("gravebuilder.status.cut", "Cut {n} cells to the clipboard (one undo step). Press PASTE to stamp them.", ("n", n)));
         }
 
         private void TogglePaste()
@@ -3443,13 +3446,13 @@ namespace GraveBuilder
             }
             if (_clipboard.Count == 0)
             {
-                SetStatus("The clipboard is empty. Select some cells and press COPY or CUT first.", error: true);
+                SetStatus(Loc.T("gravebuilder.status.paste_clipboard_empty", "The clipboard is empty. Select some cells and press COPY or CUT first."), error: true);
                 return;
             }
             _pasteMode = true;
             _canvas?.Repaint();
             RefreshClipboardButtons();
-            SetStatus($"Paste: left-click stamps the {_clipboard.Count}-cell clipboard centred on the cursor (each stamp is its own undo step). Right-click or CANCEL PASTE stops.");
+            SetStatus(Loc.F("gravebuilder.status.paste_ready", "Paste: left-click stamps the {n}-cell clipboard centred on the cursor (each stamp is its own undo step). Right-click or CANCEL PASTE stops.", ("n", _clipboard.Count)));
         }
 
         // ---- tools & painting ---------------------------------------------------------
@@ -3546,8 +3549,8 @@ namespace GraveBuilder
             }
             RefreshClipboardButtons();
             SetStatus(_selection.Count > 0
-                ? $"{_selection.Count} cells selected{(filled > 0 ? $" ({filled} enclosed cells auto-filled)" : "")}. COPY or CUT them, or keep dragging to adjust."
-                : "Nothing selected.");
+                ? Loc.F("gravebuilder.status.selection_count", "{n} cells selected{filled_note}. COPY or CUT them, or keep dragging to adjust.", ("n", _selection.Count), ("filled_note", filled > 0 ? Loc.F("gravebuilder.status.selection_filled_note", " ({filled} enclosed cells auto-filled)", ("filled", filled)) : ""))
+                : Loc.T("gravebuilder.status.selection_none", "Nothing selected."));
         }
 
         private void ToggleAutoFillLoops()
@@ -3555,8 +3558,8 @@ namespace GraveBuilder
             _autoFillLoops = !_autoFillLoops;
             RefreshClipboardButtons();
             SetStatus(_autoFillLoops
-                ? "Auto-fill loops on: finishing a SELECT left-drag also selects every cell the selection encloses."
-                : "Auto-fill loops off: SELECT selects exactly what you drag over.");
+                ? Loc.T("gravebuilder.status.auto_fill_loops_on", "Auto-fill loops on: finishing a SELECT left-drag also selects every cell the selection encloses.")
+                : Loc.T("gravebuilder.status.auto_fill_loops_off", "Auto-fill loops off: SELECT selects exactly what you drag over."));
         }
 
         // Selects every unselected cell of the extent that the selection walls off from the
@@ -3640,7 +3643,7 @@ namespace GraveBuilder
             {
                 return false;
             }
-            BeginAction("Paste");
+            BeginAction(Loc.T("gravebuilder.history.paste", "Paste"));
             bool changed = false;
             foreach (ClipCell cc in _clipboard)
             {
@@ -3659,11 +3662,11 @@ namespace GraveBuilder
             if (changed)
             {
                 UpdateStatsNow();
-                SetStatus($"Pasted at Q {q} R {r} (one undo step). Click again for another copy; right-click or CANCEL PASTE stops.");
+                SetStatus(Loc.F("gravebuilder.status.pasted", "Pasted at Q {q} R {r} (one undo step). Click again for another copy; right-click or CANCEL PASTE stops.", ("q", q), ("r", r)));
             }
             else
             {
-                SetStatus($"Nothing changed at Q {q} R {r}: the area already matches the clipboard.");
+                SetStatus(Loc.F("gravebuilder.status.paste_unchanged", "Nothing changed at Q {q} R {r}: the area already matches the clipboard.", ("q", q), ("r", r)));
             }
             return changed;
         }
@@ -3676,13 +3679,13 @@ namespace GraveBuilder
             RefreshClipboardButtons();
             if (was)
             {
-                SetStatus("Paste placement cancelled. The clipboard is kept.");
+                SetStatus(Loc.T("gravebuilder.status.paste_cancelled", "Paste placement cancelled. The clipboard is kept."));
             }
         }
 
         public void StrokeBegin()
         {
-            BeginAction("Brush stroke");
+            BeginAction(Loc.T("gravebuilder.history.brush_stroke", "Brush stroke"));
         }
 
         // One stroke sample: every cell within the brush radius of (q, r), plus mirrors.
@@ -3694,7 +3697,7 @@ namespace GraveBuilder
             }
             if (_pending == null)
             {
-                BeginAction("Brush stroke");
+                BeginAction(Loc.T("gravebuilder.history.brush_stroke", "Brush stroke"));
             }
             bool changed = false;
             int b = _brush;
@@ -3755,7 +3758,7 @@ namespace GraveBuilder
             }
 
             // Collected first, painted after, so painting can't change what "matches".
-            BeginAction(erase ? "Flood erase" : "Flood fill");
+            BeginAction(erase ? Loc.T("gravebuilder.history.flood_erase", "Flood erase") : Loc.T("gravebuilder.history.flood_fill", "Flood fill"));
             bool changed = false;
             foreach (Vector2Int c in region)
             {
@@ -3765,7 +3768,9 @@ namespace GraveBuilder
             if (changed)
             {
                 UpdateStatsNow();
-                SetStatus($"{(erase ? "Flood-erased" : "Flood-filled")} a region of {region.Count} cells{(MirrorActive ? " (mirrored)" : "")}.");
+                SetStatus(erase
+                    ? Loc.F("gravebuilder.status.flood_erased", "Flood-erased a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : ""))
+                    : Loc.F("gravebuilder.status.flood_filled", "Flood-filled a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : "")));
             }
             return changed;
         }
@@ -3780,9 +3785,9 @@ namespace GraveBuilder
             // tile key with its underscore intact (e.g. "SPECIAL_1") — the exact complaint this
             // pass is fixing. TileLabel resolves it to the game's own tile name first.
             string what = _map.cells.TryGetValue(new Vector2Int(q, r), out SandboxMap.Cell cell)
-                ? $"{LayerColourName(cell.layer).ToUpperInvariant()} · {TileLabel(cell.tile).ToUpperInvariant()}"
-                : "EMPTY";
-            RetextTracked(_hoverLabel, $"CELL  Q {q}  R {r}  ·  {what}", 2f);
+                ? Loc.F("gravebuilder.screen.hover_cell_contents", "{colour} · {tile}", ("colour", LayerColourName(cell.layer).ToUpperInvariant()), ("tile", TileLabel(cell.tile).ToUpperInvariant()))
+                : Loc.T("gravebuilder.screen.hover_cell_empty", "EMPTY");
+            RetextTracked(_hoverLabel, Loc.F("gravebuilder.screen.hover_cell", "CELL  Q {q}  R {r}  ·  {what}", ("q", q), ("r", r), ("what", what)), 2f);
         }
 
         // Plain display name for a cell's tile key, matching the game's own tile "label" field
@@ -3792,7 +3797,7 @@ namespace GraveBuilder
             string t = tile ?? Substrate;
             if (t == Substrate)
             {
-                return "Substrate";
+                return Loc.T("gravebuilder.tiles.substrate", "Substrate");
             }
             return SpecialTileLabel.TryGetValue(t, out string label) ? label : t;
         }
@@ -3939,14 +3944,14 @@ namespace GraveBuilder
             CommitAction();
             if (_undo.Count == 0)
             {
-                SetStatus("Nothing to undo.");
+                SetStatus(Loc.T("gravebuilder.status.undo_nothing", "Nothing to undo."));
                 return;
             }
             Edit edit = _undo[_undo.Count - 1];
             _undo.RemoveAt(_undo.Count - 1);
             ApplyEdit(edit, after: false);
             _redo.Add(edit);
-            AfterHistoryMove($"Undid: {edit.Label} ({edit.Cells.Count} cells).");
+            AfterHistoryMove(Loc.F("gravebuilder.status.undid", "Undid: {action} ({n} cells).", ("action", edit.Label), ("n", edit.Cells.Count)));
         }
 
         private void Redo()
@@ -3954,14 +3959,14 @@ namespace GraveBuilder
             CommitAction();
             if (_redo.Count == 0)
             {
-                SetStatus("Nothing to redo.");
+                SetStatus(Loc.T("gravebuilder.status.redo_nothing", "Nothing to redo."));
                 return;
             }
             Edit edit = _redo[_redo.Count - 1];
             _redo.RemoveAt(_redo.Count - 1);
             ApplyEdit(edit, after: true);
             _undo.Add(edit);
-            AfterHistoryMove($"Redid: {edit.Label} ({edit.Cells.Count} cells).");
+            AfterHistoryMove(Loc.F("gravebuilder.status.redid", "Redid: {action} ({n} cells).", ("action", edit.Label), ("n", edit.Cells.Count)));
         }
 
         // Restore the exact recorded states (not a replay of the original tool), so redo is
@@ -4062,14 +4067,14 @@ namespace GraveBuilder
             CommitAction();
             _canvas?.Refresh();
             UpdateStatsNow();
-            SetStatus($"{what}: {_map.cells.Count} cells (radius {_map.radius}).");
+            SetStatus(Loc.F("gravebuilder.status.map_replaced", "{what}: {n} cells (radius {radius}).", ("what", what), ("n", _map.cells.Count), ("radius", _map.radius)));
         }
 
         private bool ReadRadius(out int radius)
         {
             if (!int.TryParse((_radiusText ?? "").Trim(), out radius))
             {
-                SetStatus("Radius must be a whole number from 1 to 300.", error: true);
+                SetStatus(Loc.T("gravebuilder.status.radius_invalid", "Radius must be a whole number from 1 to 300."), error: true);
                 return false;
             }
             int clamped = Mathf.Clamp(radius, MinRadius, MaxRadius);
@@ -4106,7 +4111,7 @@ namespace GraveBuilder
             {
                 map = SandboxMap.NewEmpty(radius);
             }
-            ReplaceMap(map, filled ? "New filled map" : "New empty map");
+            ReplaceMap(map, filled ? Loc.T("gravebuilder.history.new_filled_map", "New filled map") : Loc.T("gravebuilder.history.new_empty_map", "New empty map"));
         }
 
         // Non-destructive: only extends the paintable extent, never touches cells.
@@ -4118,16 +4123,16 @@ namespace GraveBuilder
             }
             if (radius <= _map.radius)
             {
-                SetStatus($"Nothing changed: {radius} is not larger than the current radius ({_map.radius}). Grow only extends the map; use NEW for a smaller one.");
+                SetStatus(Loc.F("gravebuilder.status.grow_unchanged", "Nothing changed: {radius} is not larger than the current radius ({current}). Grow only extends the map; use NEW for a smaller one.", ("radius", radius), ("current", _map.radius)));
                 return;
             }
             int old = _map.radius;
-            BeginAction("Grow radius");
+            BeginAction(Loc.T("gravebuilder.history.grow_radius", "Grow radius"));
             _map.radius = radius;
             CommitAction();
             _canvas?.Refresh();
             UpdateStatsNow();
-            SetStatus($"Grew the radius from {old} to {radius}; painted cells are unchanged.");
+            SetStatus(Loc.F("gravebuilder.status.grew", "Grew the radius from {old} to {radius}; painted cells are unchanged.", ("old", old), ("radius", radius)));
         }
 
         // ---- image import (LOAD IMAGE) ------------------------------------------------
@@ -4140,7 +4145,7 @@ namespace GraveBuilder
         {
             if (!int.TryParse((text ?? "").Trim(), out value))
             {
-                SetStatus($"{what} must be a whole number from {min} to {max}.", error: true);
+                SetStatus(Loc.F("gravebuilder.status.int_field_invalid", "{what} must be a whole number from {min} to {max}.", ("what", what), ("min", min), ("max", max)), error: true);
                 return false;
             }
             int clamped = Mathf.Clamp(value, min, max);
@@ -4155,8 +4160,8 @@ namespace GraveBuilder
 
         private void LoadImage()
         {
-            if (!ReadClampedInt("Max grid size", ref _imageSizeText, _imageSizeField, MinRadius, MaxImageSize, out int size)
-                || !ReadClampedInt("Alpha threshold", ref _imageAlphaText, _imageAlphaField, 0, 255, out int alphaThreshold))
+            if (!ReadClampedInt(Loc.T("gravebuilder.image.status_size_field_name", "Max grid size"), ref _imageSizeText, _imageSizeField, MinRadius, MaxImageSize, out int size)
+                || !ReadClampedInt(Loc.T("gravebuilder.image.status_alpha_field_name", "Alpha threshold"), ref _imageAlphaText, _imageAlphaField, 0, 255, out int alphaThreshold))
             {
                 return;
             }
@@ -4164,12 +4169,12 @@ namespace GraveBuilder
             string path = (_imagePathText ?? "").Trim().Trim('"').Trim();
             if (path.Length == 0)
             {
-                SetStatus("Type the path of a PNG or JPEG file first.", error: true);
+                SetStatus(Loc.T("gravebuilder.image.status_no_path", "Type the path of a PNG or JPEG file first."), error: true);
                 return;
             }
             if (!File.Exists(path))
             {
-                SetStatus($"No file at '{path}'.", error: true);
+                SetStatus(Loc.F("gravebuilder.image.status_no_file", "No file at '{path}'.", ("path", path)), error: true);
                 return;
             }
             Texture2D tex = null;
@@ -4179,23 +4184,23 @@ namespace GraveBuilder
                 tex = new Texture2D(2, 2);
                 if (!ImageConversion.LoadImage(tex, bytes))
                 {
-                    SetStatus($"'{Path.GetFileName(path)}' couldn't be read as an image. PNG and JPEG are supported.", error: true);
+                    SetStatus(Loc.F("gravebuilder.image.status_unreadable", "'{file}' couldn't be read as an image. PNG and JPEG are supported.", ("file", Path.GetFileName(path))), error: true);
                     return;
                 }
                 SandboxMap map = ImageToMap(tex, size, alphaThreshold, _imageLuminance, _imageInvert, _imageDither);
                 if (map == null)
                 {
-                    SetStatus($"'{Path.GetFileName(path)}' produced no cells: every pixel is below the alpha threshold ({alphaThreshold}). Lower it to keep more.", error: true);
+                    SetStatus(Loc.F("gravebuilder.image.status_no_cells", "'{file}' produced no cells: every pixel is below the alpha threshold ({threshold}). Lower it to keep more.", ("file", Path.GetFileName(path)), ("threshold", alphaThreshold)), error: true);
                     return;
                 }
                 ReplaceMap(map, _imageLuminance
-                    ? $"Loaded image (luminance{(_imageInvert ? ", inverted" : "")})"
-                    : $"Loaded image (palette, dither {(_imageDither ? "on" : "off")})");
+                    ? Loc.F("gravebuilder.history.loaded_image_luminance", "Loaded image (luminance{inverted})", ("inverted", _imageInvert ? Loc.T("gravebuilder.history.loaded_image_inverted", ", inverted") : ""))
+                    : Loc.F("gravebuilder.history.loaded_image_palette", "Loaded image (palette, dither {dither})", ("dither", _imageDither ? Loc.T("gravebuilder.history.loaded_image_dither_on", "on") : Loc.T("gravebuilder.history.loaded_image_dither_off", "off"))));
                 CloseLibrary();
             }
             catch (Exception e)
             {
-                SetStatus($"Loading the image failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.image.status_load_failed", "Loading the image failed: {error}", ("error", e.Message)), error: true);
             }
             finally
             {
@@ -4477,17 +4482,17 @@ namespace GraveBuilder
         {
             if (_map.cells.Count == 0)
             {
-                SetStatus("The map is empty; paint some cells before saving it as the override.", error: true);
+                SetStatus(Loc.T("gravebuilder.map.status_override_empty", "The map is empty; paint some cells before saving it as the override."), error: true);
                 return;
             }
             try
             {
                 _map.Save(Plugin.OverrideFilePath);
-                SetStatus($"Saved {_map.cells.Count} cells as the sandbox override ({Plugin.OverrideFilePath}). The next time you fly out and mine, it'll be used.");
+                SetStatus(Loc.F("gravebuilder.map.status_override_saved", "Saved {n} cells as the sandbox override ({path}). The next time you fly out and mine, it'll be used.", ("n", _map.cells.Count), ("path", Plugin.OverrideFilePath)));
             }
             catch (Exception e)
             {
-                SetStatus($"Saving the override failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.map.status_override_save_failed", "Saving the override failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -4495,7 +4500,7 @@ namespace GraveBuilder
         {
             if (!File.Exists(Plugin.OverrideFilePath))
             {
-                SetStatus($"No override file exists yet ({Plugin.OverrideFilePath}).", error: true);
+                SetStatus(Loc.F("gravebuilder.map.status_override_missing", "No override file exists yet ({path}).", ("path", Plugin.OverrideFilePath)), error: true);
                 return;
             }
             try
@@ -4503,14 +4508,14 @@ namespace GraveBuilder
                 SandboxMap loaded = SandboxMap.Load(Plugin.OverrideFilePath);
                 if (loaded == null)
                 {
-                    SetStatus("The override file could not be read.", error: true);
+                    SetStatus(Loc.T("gravebuilder.map.status_override_unreadable", "The override file could not be read."), error: true);
                     return;
                 }
-                ReplaceMap(loaded, "Loaded the current override");
+                ReplaceMap(loaded, Loc.T("gravebuilder.history.loaded_override", "Loaded the current override"));
             }
             catch (Exception e)
             {
-                SetStatus($"Loading the override failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.map.status_override_load_failed", "Loading the override failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -4521,17 +4526,17 @@ namespace GraveBuilder
         {
             if (!File.Exists(Plugin.OverrideFilePath))
             {
-                SetStatus("No override file to remove; mining already uses the normal structures.");
+                SetStatus(Loc.T("gravebuilder.map.status_override_remove_none", "No override file to remove; mining already uses the normal structures."));
                 return;
             }
             try
             {
                 File.Delete(Plugin.OverrideFilePath);
-                SetStatus("Removed the sandbox override. Mining uses the normal structures again (the map here is unchanged).");
+                SetStatus(Loc.T("gravebuilder.map.status_override_removed", "Removed the sandbox override. Mining uses the normal structures again (the map here is unchanged)."));
             }
             catch (Exception e)
             {
-                SetStatus($"Removing the override failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.map.status_override_remove_failed", "Removing the override failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -4653,15 +4658,15 @@ namespace GraveBuilder
             if (_loadSummary != null)
             {
                 int mine = _loadEntries.Count(e => e.Local);
-                _loadSummary.text = $"{mine} YOURS · {_loadEntries.Count - mine} GAME";
+                _loadSummary.text = Loc.F("gravebuilder.structures.list_summary", "{mine} YOURS · {game} GAME", ("mine", mine), ("game", _loadEntries.Count - mine));
             }
             // Your exports first, then the game's catalogue (RefreshLoadList's order), each
             // under its own eyebrow like the Contracts list's IN PROGRESS / ALL CONTRACTS.
             bool anyLocal = _loadEntries.Any(e => e.Local);
-            _loadListHost.Add(ListHeader("YOUR EXPORTS", first: true));
+            _loadListHost.Add(ListHeader(Loc.T("gravebuilder.structures.list_header_yours", "YOUR EXPORTS"), first: true));
             if (!anyLocal)
             {
-                _loadListHost.Add(BodyText_("Nothing exported yet. Use the EXPORT tab."));
+                _loadListHost.Add(BodyText_(Loc.T("gravebuilder.structures.list_yours_empty", "Nothing exported yet. Use the EXPORT tab.")));
             }
             bool gameHeader = false;
             for (int i = 0; i < _loadEntries.Count; i++)
@@ -4669,7 +4674,7 @@ namespace GraveBuilder
                 LoadEntry entry = _loadEntries[i];
                 if (!entry.Local && !gameHeader)
                 {
-                    _loadListHost.Add(ListHeader("GAME STRUCTURES"));
+                    _loadListHost.Add(ListHeader(Loc.T("gravebuilder.structures.list_header_game", "GAME STRUCTURES")));
                     gameHeader = true;
                 }
                 VisualElement row = LoadRow(i, entry);
@@ -4678,8 +4683,8 @@ namespace GraveBuilder
             }
             if (!gameHeader)
             {
-                _loadListHost.Add(ListHeader("GAME STRUCTURES"));
-                _loadListHost.Add(BodyText_("No game structures found."));
+                _loadListHost.Add(ListHeader(Loc.T("gravebuilder.structures.list_header_game", "GAME STRUCTURES")));
+                _loadListHost.Add(BodyText_(Loc.T("gravebuilder.structures.list_game_empty", "No game structures found.")));
             }
             PaintLoadRows();
         }
@@ -4880,7 +4885,7 @@ namespace GraveBuilder
             // A cell count reads as AddRow's right-hand stat (Display face, MetaUi.Green); the
             // word tags stay quiet.
             bool hasCount = !entry.Local && entry.Def != null && entry.Def.cellCount > 0;
-            string tag = entry.Local ? "YOUR EXPORT" : (hasCount ? $"{entry.Def.cellCount} CELLS" : "GAME");
+            string tag = entry.Local ? Loc.T("gravebuilder.structures.row_tag_yours", "YOUR EXPORT") : (hasCount ? Loc.F("gravebuilder.structures.row_tag_cells", "{n} CELLS", ("n", entry.Def.cellCount)) : Loc.T("gravebuilder.structures.row_tag_game", "GAME"));
             Label tagLabel = hasCount
                 ? MetaUi.Text(tag, MetaUi.Face.Display, 17f, MetaUi.Green, 1.5f)
                 : MetaUi.Text(tag, MetaUi.Face.Body, 13f, DimText, 1.5f);
@@ -4940,14 +4945,14 @@ namespace GraveBuilder
             _loadSelected = index;
             PaintLoadRows();
             RefreshLoadDetail();
-            SetStatus($"Selected '{_loadEntries[index].Label}'.");
+            SetStatus(Loc.F("gravebuilder.structures.status_selected", "Selected '{name}'.", ("name", _loadEntries[index].Label)));
         }
 
         private void LoadSelected()
         {
             if (_loadSelected < 0 || _loadSelected >= _loadEntries.Count)
             {
-                SetStatus("Select a structure in the list first.", error: true);
+                SetStatus(Loc.T("gravebuilder.structures.status_select_first", "Select a structure in the list first."), error: true);
                 return;
             }
             LoadEntry entry = _loadEntries[_loadSelected];
@@ -4964,7 +4969,7 @@ namespace GraveBuilder
             }
             catch (Exception e)
             {
-                SetStatus($"Loading '{entry.Label}' failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.structures.status_load_failed", "Loading '{name}' failed: {error}", ("name", entry.Label), ("error", e.Message)), error: true);
             }
         }
 
@@ -4975,17 +4980,17 @@ namespace GraveBuilder
             string cellsFile = (string)def["cells_file"];
             if (string.IsNullOrEmpty(cellsFile))
             {
-                SetStatus($"'{Path.GetFileName(entry.DefPath)}' has no cells_file.", error: true);
+                SetStatus(Loc.F("gravebuilder.structures.status_no_cells_file", "'{file}' has no cells_file.", ("file", Path.GetFileName(entry.DefPath))), error: true);
                 return false;
             }
             string cellsPath = Path.Combine(Path.GetDirectoryName(entry.DefPath), cellsFile);
             if (!File.Exists(cellsPath))
             {
-                SetStatus($"Cells file '{cellsFile}' is missing next to '{Path.GetFileName(entry.DefPath)}'.", error: true);
+                SetStatus(Loc.F("gravebuilder.structures.status_cells_file_missing", "Cells file '{cells_file}' is missing next to '{file}'.", ("cells_file", cellsFile), ("file", Path.GetFileName(entry.DefPath))), error: true);
                 return false;
             }
             SandboxMap map = SandboxMap.FromMegastructure(MegastructureData.FromJson(File.ReadAllText(cellsPath)));
-            ReplaceMap(map, $"Loaded '{entry.Label}'");
+            ReplaceMap(map, Loc.F("gravebuilder.history.loaded_structure_local", "Loaded '{name}'", ("name", entry.Label)));
 
             // Pre-fill the export form so re-exporting overwrites the same files.
             string id = (string)def["id"] ?? Path.GetFileNameWithoutExtension(entry.DefPath);
@@ -5006,7 +5011,9 @@ namespace GraveBuilder
                 _bands.Add(DefaultBand());
             }
             RebuildBands();
-            SetStatus($"Loaded '{entry.Label}': {_map.cells.Count} cells; the export form now targets '{id}' ({_bands.Count} stage{(_bands.Count == 1 ? "" : "s")}).");
+            SetStatus(_bands.Count == 1
+                ? Loc.F("gravebuilder.structures.status_loaded_local_one", "Loaded '{name}': {n} cells; the export form now targets '{id}' ({stages} stage).", ("name", entry.Label), ("n", _map.cells.Count), ("id", id), ("stages", _bands.Count))
+                : Loc.F("gravebuilder.structures.status_loaded_local_other", "Loaded '{name}': {n} cells; the export form now targets '{id}' ({stages} stages).", ("name", entry.Label), ("n", _map.cells.Count), ("id", id), ("stages", _bands.Count)));
             return true;
         }
 
@@ -5014,17 +5021,17 @@ namespace GraveBuilder
         {
             if (entry.Def.cells == null)
             {
-                SetStatus($"'{entry.Label}' has no cell data to load.", error: true);
+                SetStatus(Loc.F("gravebuilder.structures.status_no_cell_data", "'{name}' has no cell data to load.", ("name", entry.Label)), error: true);
                 return false;
             }
             SandboxMap map = SandboxMap.FromMegastructure(MegastructureData.FromJson(entry.Def.cells.text));
-            ReplaceMap(map, $"Loaded '{entry.Label}'");
+            ReplaceMap(map, Loc.F("gravebuilder.history.loaded_structure_game", "Loaded '{name}'", ("name", entry.Label)));
             // Official structures never had a struct-def JSON, so don't guess: blank form.
             SetForm(DefaultId, DefaultName, DefaultStartingMoney.ToString());
             _bands.Clear();
             _bands.Add(DefaultBand());
             RebuildBands();
-            SetStatus($"Loaded game structure '{entry.Label}': {_map.cells.Count} cells. The export form was reset to defaults.");
+            SetStatus(Loc.F("gravebuilder.structures.status_loaded_game", "Loaded game structure '{name}': {n} cells. The export form was reset to defaults.", ("name", entry.Label), ("n", _map.cells.Count)));
             return true;
         }
 
@@ -5040,9 +5047,9 @@ namespace GraveBuilder
                 return;
             }
             CommitAction();
-            TerminalUi.Confirm(root, "map-builder-confirm-delete", Accent, "DELETE STRUCTURE",
-                $"Delete '{entry.Label}'?",
-                "DELETE", () => DeleteLocalStructureConfirmed(entry));
+            TerminalUi.Confirm(root, "map-builder-confirm-delete", Accent, Loc.T("gravebuilder.structures.confirm_delete_title", "DELETE STRUCTURE"),
+                Loc.F("gravebuilder.structures.confirm_delete_body", "Delete '{name}'?", ("name", entry.Label)),
+                Loc.T("gravebuilder.structures.confirm_delete_button", "DELETE"), () => DeleteLocalStructureConfirmed(entry));
         }
 
         // Removes <id>.json and its cells file from StructuresDir() (the folder ExportStructure
@@ -5065,7 +5072,7 @@ namespace GraveBuilder
                 string defPath = Path.GetFullPath(entry.DefPath);
                 if (!string.Equals(Path.GetDirectoryName(defPath), dir.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
                 {
-                    SetStatus($"Refusing to delete '{defPath}': it isn't in {dir}.", error: true);
+                    SetStatus(Loc.F("gravebuilder.structures.status_delete_refused", "Refusing to delete '{path}': it isn't in {dir}.", ("path", defPath), ("dir", dir)), error: true);
                     return;
                 }
 
@@ -5132,15 +5139,15 @@ namespace GraveBuilder
                 }
 
                 RefreshLoadList();
-                string files = removed.Count > 0 ? string.Join(" + ", removed) : "no files were left to remove";
+                string files = removed.Count > 0 ? string.Join(" + ", removed) : Loc.T("gravebuilder.structures.delete_no_files", "no files were left to remove");
                 SetStatus(inGame
-                    ? $"Deleted structure '{entry.Label}' ({files}). It's still in the game's Contracts list this session: click RELOAD MODS on the main menu's Mods page to remove it there too. The map here is unchanged."
-                    : $"Deleted structure '{entry.Label}' ({files}). The map here is unchanged.");
+                    ? Loc.F("gravebuilder.structures.status_deleted_in_game", "Deleted structure '{name}' ({files}). It's still in the game's Contracts list this session: click RELOAD MODS on the main menu's Mods page to remove it there too. The map here is unchanged.", ("name", entry.Label), ("files", files))
+                    : Loc.F("gravebuilder.structures.status_deleted", "Deleted structure '{name}' ({files}). The map here is unchanged.", ("name", entry.Label), ("files", files)));
             }
             catch (Exception e)
             {
                 RefreshLoadList();
-                SetStatus($"Deleting '{entry.Label}' failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.structures.status_delete_failed", "Deleting '{name}' failed: {error}", ("name", entry.Label), ("error", e.Message)), error: true);
             }
         }
 
@@ -5216,8 +5223,8 @@ namespace GraveBuilder
             title.style.marginBottom = 4f;
             VisualElement titleText = Row();
             titleText.style.alignItems = Align.Center;
-            titleText.Add(MetaUi.Text($"STAGE {index + 1}", MetaUi.Face.DisplayBold, 20f, AccentLt, 3f));
-            Label order = MetaUi.Text(index == 0 ? "UNLOCKS FIRST" : $"UNLOCKS AFTER STAGE {index}", MetaUi.Face.Body, 14f, DimText, 2f);
+            titleText.Add(MetaUi.Text(Loc.F("gravebuilder.export.stage_title", "STAGE {stage}", ("stage", index + 1)), MetaUi.Face.DisplayBold, 20f, AccentLt, 3f));
+            Label order = MetaUi.Text(index == 0 ? Loc.T("gravebuilder.export.stage_unlocks_first", "UNLOCKS FIRST") : Loc.F("gravebuilder.export.stage_unlocks_after", "UNLOCKS AFTER STAGE {stage}", ("stage", index)), MetaUi.Face.Body, 14f, DimText, 2f);
             order.style.marginLeft = 16f;
             titleText.Add(order);
             title.Add(titleText);
@@ -5229,13 +5236,13 @@ namespace GraveBuilder
                 }
                 RebuildBands();
                 SetStatus(_bands.Count == 0
-                    ? "Removed the last stage; export needs at least one (ADD STAGE)."
-                    : $"Removed stage {index + 1}.");
-            }, 54f, MetaUi.Crimson), "Remove this stage. The stages after it move up one place in the unlock order."));
+                    ? Loc.T("gravebuilder.export.status_removed_last_stage", "Removed the last stage; export needs at least one (ADD STAGE).")
+                    : Loc.F("gravebuilder.export.status_removed_stage", "Removed stage {stage}.", ("stage", index + 1)));
+            }, 54f, MetaUi.Crimson), Loc.T("gravebuilder.export.remove_stage_tooltip", "Remove this stage. The stages after it move up one place in the unlock order.")));
             panel.Add(title);
 
             // Substrate colour.
-            panel.Add(AttachTooltip(GroupLabel("SUBSTRATE COLOUR"), BandFields[BandLayer].Tooltip));
+            panel.Add(AttachTooltip(GroupLabel(Loc.T("gravebuilder.export.stage_colour_header", "SUBSTRATE COLOUR")), BandFields[BandLayer].Tooltip));
             int.TryParse((values[BandLayer] ?? "").Trim(), out int layer);
             VisualElement swatches = Row();
             swatches.style.flexWrap = Wrap.Wrap;
@@ -5256,7 +5263,7 @@ namespace GraveBuilder
             // Same always-visible weapon legend as the PALETTE panel (LayerCaption) — this is
             // the one other place a player picks a substrate colour, and it had no explanation
             // at all before, not even a tooltip.
-            Label legend = BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => $"{LayerColourName(l)}: {LayerCaption(l)}")));
+            Label legend = BodyText_(string.Join("  ·  ", Enumerable.Range(1, 5).Select(l => Loc.F("gravebuilder.export.layer_legend_item", "{colour}: {caption}", ("colour", LayerColourName(l)), ("caption", LayerCaption(l))))));
             legend.style.marginBottom = 4f;
             panel.Add(legend);
             BandColourNote(panel, index, layer, values[BandLayer], counts);
@@ -5269,7 +5276,7 @@ namespace GraveBuilder
             groups.style.marginTop = 4f;
             panel.Add(groups);
 
-            VisualElement health = BandGroup(groups, "TILE HEALTH", BandFields[BandHpSealed].Tooltip);
+            VisualElement health = BandGroup(groups, Loc.T("gravebuilder.export.stage_health_header", "TILE HEALTH"), BandFields[BandHpSealed].Tooltip);
             health.Add(CompactField(values, BandHpSealed, null, 190f));
 
             // Shard/enemy counts, preview ring size and core look all got a UI pass this session
@@ -5328,7 +5335,7 @@ namespace GraveBuilder
             Color colour;
             if (layer < 1 || layer > 5 || !int.TryParse((raw ?? "").Trim(), out _))
             {
-                text = $"Pick a colour: the saved value '{raw}' isn't one of the five (1-5).";
+                text = Loc.F("gravebuilder.export.colour_note_invalid", "Pick a colour: the saved value '{value}' isn't one of the five (1-5).", ("value", raw));
                 colour = MetaUi.Crimson;
             }
             else
@@ -5346,17 +5353,19 @@ namespace GraveBuilder
                 int n = counts.TryGetValue(layer, out int c) ? c : 0;
                 if (earlier >= 0)
                 {
-                    text = $"Stage {earlier + 1} already uses {name}, so this stage gets no tiles (the first stage with a colour takes them all).";
+                    text = Loc.F("gravebuilder.export.colour_note_taken", "Stage {stage} already uses {colour}, so this stage gets no tiles (the first stage with a colour takes them all).", ("stage", earlier + 1), ("colour", name));
                     colour = WarnText;
                 }
                 else if (n == 0)
                 {
-                    text = $"No cells on this map are painted {name}, so this stage has no tiles yet.";
+                    text = Loc.F("gravebuilder.export.colour_note_unpainted", "No cells on this map are painted {colour}, so this stage has no tiles yet.", ("colour", name));
                     colour = WarnText;
                 }
                 else
                 {
-                    text = $"{n} cell{(n == 1 ? "" : "s")} on this map {(n == 1 ? "is" : "are")} {name}.";
+                    text = n == 1
+                        ? Loc.F("gravebuilder.export.colour_note_count_one", "{n} cell on this map is {colour}.", ("n", n), ("colour", name))
+                        : Loc.F("gravebuilder.export.colour_note_count_other", "{n} cells on this map are {colour}.", ("n", n), ("colour", name));
                     colour = DimText;
                 }
             }
@@ -5415,7 +5424,7 @@ namespace GraveBuilder
             tf.style.marginTop = 2f;
             cell.Add(tf);
 
-            Label error = MetaUi.Text("Must be " + BandValueRule(spec) + ".", MetaUi.Face.Body, 13f, MetaUi.Crimson, 0f, wrap: true);
+            Label error = MetaUi.Text(Loc.F("gravebuilder.export.field_error", "Must be {rule}.", ("rule", BandValueRule(spec))), MetaUi.Face.Body, 13f, MetaUi.Crimson, 0f, wrap: true);
             error.style.marginTop = 2f;
             cell.Add(error);
 
@@ -5443,11 +5452,11 @@ namespace GraveBuilder
         {
             if (spec.IsFloat)
             {
-                return $"a number from {spec.Min} to {spec.Max} (use a '.' for decimals)";
+                return Loc.F("gravebuilder.export.rule_decimal", "a number from {min} to {max} (use a '.' for decimals)", ("min", spec.Min), ("max", spec.Max));
             }
             return spec.Max >= int.MaxValue
-                ? $"a whole number of {spec.Min} or more"
-                : $"a whole number from {spec.Min} to {spec.Max}";
+                ? Loc.F("gravebuilder.export.rule_whole_min", "a whole number of {min} or more", ("min", spec.Min))
+                : Loc.F("gravebuilder.export.rule_whole_range", "a whole number from {min} to {max}", ("min", spec.Min), ("max", spec.Max));
         }
 
         private static bool BandValueValid(BandField spec, string raw)
@@ -5474,7 +5483,7 @@ namespace GraveBuilder
                     string raw = (_bands[i][f] ?? "").Trim();
                     if (!BandValueValid(spec, raw))
                     {
-                        error = $"Stage {i + 1}: {spec.Label} must be {BandValueRule(spec)}.";
+                        error = Loc.F("gravebuilder.export.status_stage_field_invalid", "Stage {stage}: {field} must be {rule}.", ("stage", i + 1), ("field", spec.Label), ("rule", BandValueRule(spec)));
                         return null;
                     }
                     if (spec.IsFloat)
@@ -5505,7 +5514,7 @@ namespace GraveBuilder
             string id = (_idText ?? "").Trim().ToLowerInvariant();
             if (!IdPattern.IsMatch(id))
             {
-                SetStatus("The ID must be lowercase letters, digits and underscores only.", error: true);
+                SetStatus(Loc.T("gravebuilder.export.status_id_invalid", "The ID must be lowercase letters, digits and underscores only."), error: true);
                 return;
             }
             string displayName = (_nameText ?? "").Trim();
@@ -5515,17 +5524,17 @@ namespace GraveBuilder
             }
             if (!int.TryParse((_moneyText ?? "").Trim(), out int money) || money < 0)
             {
-                SetStatus("Starting money must be a whole number of 0 or more.", error: true);
+                SetStatus(Loc.T("gravebuilder.export.status_money_invalid", "Starting money must be a whole number of 0 or more."), error: true);
                 return;
             }
             if (_map.cells.Count == 0)
             {
-                SetStatus("The map is empty; paint some cells before exporting it.", error: true);
+                SetStatus(Loc.T("gravebuilder.export.status_map_empty", "The map is empty; paint some cells before exporting it."), error: true);
                 return;
             }
             if (_bands.Count == 0)
             {
-                SetStatus("Add at least one stage before exporting.", error: true);
+                SetStatus(Loc.T("gravebuilder.export.status_no_stages", "Add at least one stage before exporting."), error: true);
                 return;
             }
             JArray bands = BandsToJson(out string bandError);
@@ -5567,20 +5576,26 @@ namespace GraveBuilder
                 try
                 {
                     GraveFramework.Plugin.ReloadAll();
-                    reloadNote = "It's already live in the Contracts list.";
+                    reloadNote = Loc.T("gravebuilder.export.reload_live", "It's already live in the Contracts list.");
                 }
                 catch (Exception re)
                 {
                     Plugin.Log.LogWarning($"MapBuilder: reload after export failed: {re}");
-                    reloadNote = $"Reloading the Contracts list failed ({re.Message}); click RELOAD MODS on the main menu's Mods page to try again.";
+                    reloadNote = Loc.F("gravebuilder.export.reload_failed", "Reloading the Contracts list failed ({error}); click RELOAD MODS on the main menu's Mods page to try again.", ("error", re.Message));
                 }
                 // After the reload, so the list reflects the re-injected catalogue.
                 RefreshLoadList();
-                SetStatus($"{(overwrote ? "Overwrote" : "Exported")} structure '{id}' ({_map.cells.Count} cells, {bands.Count} stage{(bands.Count == 1 ? "" : "s")}) to {dir}. {reloadNote}");
+                SetStatus(overwrote
+                    ? (bands.Count == 1
+                        ? Loc.F("gravebuilder.export.status_overwrote_one", "Overwrote structure '{id}' ({n} cells, {stages} stage) to {dir}. {note}", ("id", id), ("n", _map.cells.Count), ("stages", bands.Count), ("dir", dir), ("note", reloadNote))
+                        : Loc.F("gravebuilder.export.status_overwrote_other", "Overwrote structure '{id}' ({n} cells, {stages} stages) to {dir}. {note}", ("id", id), ("n", _map.cells.Count), ("stages", bands.Count), ("dir", dir), ("note", reloadNote)))
+                    : (bands.Count == 1
+                        ? Loc.F("gravebuilder.export.status_exported_one", "Exported structure '{id}' ({n} cells, {stages} stage) to {dir}. {note}", ("id", id), ("n", _map.cells.Count), ("stages", bands.Count), ("dir", dir), ("note", reloadNote))
+                        : Loc.F("gravebuilder.export.status_exported_other", "Exported structure '{id}' ({n} cells, {stages} stages) to {dir}. {note}", ("id", id), ("n", _map.cells.Count), ("stages", bands.Count), ("dir", dir), ("note", reloadNote))));
             }
             catch (Exception e)
             {
-                SetStatus($"Export failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.export.status_failed", "Export failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -5707,7 +5722,7 @@ namespace GraveBuilder
             }
             _partSaveHost.Clear();
             bool any = _clipboard.Count > 0;
-            _partSaveHost.Add(CompactActionBtn(any ? $"SAVE CLIPBOARD AS PART ({_clipboard.Count} CELLS)" : "SAVE CLIPBOARD AS PART", SavePart, enabled: any));
+            _partSaveHost.Add(CompactActionBtn(any ? Loc.F("gravebuilder.parts.save_button_count", "SAVE CLIPBOARD AS PART ({n} CELLS)", ("n", _clipboard.Count)) : Loc.T("gravebuilder.parts.save_button", "SAVE CLIPBOARD AS PART"), SavePart, enabled: any));
         }
 
         private void SavePart()
@@ -5715,19 +5730,19 @@ namespace GraveBuilder
             CommitAction();
             if (_clipboard.Count == 0)
             {
-                SetStatus("The clipboard is empty. Select some cells and press COPY or CUT first.", error: true);
+                SetStatus(Loc.T("gravebuilder.parts.status_clipboard_empty", "The clipboard is empty. Select some cells and press COPY or CUT first."), error: true);
                 return;
             }
             string name = (_partNameText ?? "").Trim();
             if (name.Length == 0)
             {
-                SetStatus("Type a name for the part first.", error: true);
+                SetStatus(Loc.T("gravebuilder.parts.status_no_name", "Type a name for the part first."), error: true);
                 return;
             }
             string fileId = PartFileId(name);
             if (fileId == null)
             {
-                SetStatus("The part name needs at least one letter or digit (it also becomes the file name).", error: true);
+                SetStatus(Loc.T("gravebuilder.parts.status_bad_name", "The part name needs at least one letter or digit (it also becomes the file name)."), error: true);
                 return;
             }
             try
@@ -5738,11 +5753,13 @@ namespace GraveBuilder
                 bool overwrote = File.Exists(path);
                 File.WriteAllText(path, PartToJson(name, _clipboard).ToString(Formatting.Indented));
                 RefreshPartsList();
-                SetStatus($"{(overwrote ? "Overwrote" : "Saved")} part '{name}' ({_clipboard.Count} cells) as {fileId}.json in {dir}.");
+                SetStatus(overwrote
+                    ? Loc.F("gravebuilder.parts.status_overwrote", "Overwrote part '{name}' ({n} cells) as {file}.json in {dir}.", ("name", name), ("n", _clipboard.Count), ("file", fileId), ("dir", dir))
+                    : Loc.F("gravebuilder.parts.status_saved", "Saved part '{name}' ({n} cells) as {file}.json in {dir}.", ("name", name), ("n", _clipboard.Count), ("file", fileId), ("dir", dir)));
             }
             catch (Exception e)
             {
-                SetStatus($"Saving the part failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.parts.status_save_failed", "Saving the part failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -5801,12 +5818,14 @@ namespace GraveBuilder
             _partHover = -1;
             if (_partsSummary != null)
             {
-                _partsSummary.text = $"{_partEntries.Count} SAVED PART{(_partEntries.Count == 1 ? "" : "S")}";
+                _partsSummary.text = _partEntries.Count == 1
+                    ? Loc.F("gravebuilder.parts.list_summary_one", "{n} SAVED PART", ("n", _partEntries.Count))
+                    : Loc.F("gravebuilder.parts.list_summary_other", "{n} SAVED PARTS", ("n", _partEntries.Count));
             }
-            _partsListHost.Add(ListHeader("SAVED PARTS", first: true));
+            _partsListHost.Add(ListHeader(Loc.T("gravebuilder.parts.list_header", "SAVED PARTS"), first: true));
             if (_partEntries.Count == 0)
             {
-                _partsListHost.Add(BodyText_("No saved parts yet. Select some cells on the map, COPY them, then save them below."));
+                _partsListHost.Add(BodyText_(Loc.T("gravebuilder.parts.list_empty", "No saved parts yet. Select some cells on the map, COPY them, then save them below.")));
                 return;
             }
             for (int i = 0; i < _partEntries.Count; i++)
@@ -5843,7 +5862,7 @@ namespace GraveBuilder
             name.style.textOverflow = TextOverflow.Ellipsis;
             row.Add(name);
 
-            Label count = MetaUi.Text($"{entry.CellCount} CELLS", MetaUi.Face.Display, 17f, MetaUi.Green, 1.5f);
+            Label count = MetaUi.Text(Loc.F("gravebuilder.parts.row_cells", "{n} CELLS", ("n", entry.CellCount)), MetaUi.Face.Display, 17f, MetaUi.Green, 1.5f);
             count.pickingMode = PickingMode.Ignore;
             count.style.flexShrink = 0f;
             count.style.marginLeft = 16f;
@@ -5894,14 +5913,14 @@ namespace GraveBuilder
             _partSelected = index;
             PaintPartRows();
             RefreshPartDetail();
-            SetStatus($"Selected part '{_partEntries[index].Name}'.");
+            SetStatus(Loc.F("gravebuilder.parts.status_selected", "Selected part '{name}'.", ("name", _partEntries[index].Name)));
         }
 
         private void LoadSelectedPart()
         {
             if (_partSelected < 0 || _partSelected >= _partEntries.Count)
             {
-                SetStatus("Select a part in the list first.", error: true);
+                SetStatus(Loc.T("gravebuilder.parts.status_select_first", "Select a part in the list first."), error: true);
                 return;
             }
             LoadPart(_partEntries[_partSelected]);
@@ -5922,7 +5941,7 @@ namespace GraveBuilder
                 empty.style.flexGrow = 1f;
                 empty.style.justifyContent = Justify.Center;
                 empty.style.alignItems = Align.Center;
-                empty.Add(BodyText_("Select a part from the list to see it here."));
+                empty.Add(BodyText_(Loc.T("gravebuilder.parts.detail_empty", "Select a part from the list to see it here.")));
                 _partDetailHost.Add(empty);
                 return;
             }
@@ -5938,13 +5957,13 @@ namespace GraveBuilder
 
             panel.Add(MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 28f, MetaUi.TextTone(Accent), 2f));
 
-            string cells = $"SAVED PART · {entry.CellCount} cells{(entry.EmptyCount > 0 ? $" ({entry.EmptyCount} empty, which erase when pasted)" : "")} · {Path.GetFileName(entry.Path)}";
+            string cells = Loc.F("gravebuilder.parts.detail_sub", "SAVED PART · {n} cells{empty_note} · {file}", ("n", entry.CellCount), ("empty_note", entry.EmptyCount > 0 ? Loc.F("gravebuilder.parts.detail_empty_note", " ({empty} empty, which erase when pasted)", ("empty", entry.EmptyCount)) : ""), ("file", Path.GetFileName(entry.Path)));
             Label sub = MetaUi.Text(cells, MetaUi.Face.Body, 16f, DimText, 1.5f, wrap: true);
             sub.style.marginTop = 6f;
             sub.style.marginBottom = 20f;
             panel.Add(sub);
 
-            Label descLabel = MetaUi.Text("A saved clipboard. Loading it replaces the clipboard and takes you back to the map in paste mode: left-click stamps it. Deleting it removes its file; the clipboard is unchanged either way.", MetaUi.Face.Body, 17f, BodyText, 0.5f, wrap: true);
+            Label descLabel = MetaUi.Text(Loc.T("gravebuilder.parts.detail_desc", "A saved clipboard. Loading it replaces the clipboard and takes you back to the map in paste mode: left-click stamps it. Deleting it removes its file; the clipboard is unchanged either way."), MetaUi.Face.Body, 17f, BodyText, 0.5f, wrap: true);
             descLabel.style.maxWidth = 640f;
             descLabel.style.marginBottom = 24f;
             panel.Add(descLabel);
@@ -5952,11 +5971,11 @@ namespace GraveBuilder
             VisualElement actions = Row();
             actions.style.flexWrap = Wrap.Wrap;
             actions.style.alignItems = Align.Center;
-            VisualElement loadBtn = CompactActionBtn("LOAD INTO CLIPBOARD", () => LoadPart(entry), family: Accent, size: 17f, padX: 36f);
+            VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.parts.load_button", "LOAD INTO CLIPBOARD"), () => LoadPart(entry), family: Accent, size: 17f, padX: 36f);
             loadBtn.style.marginRight = 10f;
-            actions.Add(AttachTooltip(loadBtn, "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it."));
-            actions.Add(AttachTooltip(CompactActionBtn("DELETE", () => DeletePart(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
-                "Delete this part's file. The clipboard is unchanged."));
+            actions.Add(AttachTooltip(loadBtn, Loc.T("gravebuilder.parts.load_tooltip", "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it.")));
+            actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.parts.delete_button", "DELETE"), () => DeletePart(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                Loc.T("gravebuilder.parts.delete_tooltip", "Delete this part's file. The clipboard is unchanged.")));
             panel.Add(actions);
         }
 
@@ -5973,7 +5992,7 @@ namespace GraveBuilder
             }
             catch (Exception e)
             {
-                SetStatus($"Loading part '{entry.Name}' failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.parts.status_load_failed", "Loading part '{name}' failed: {error}", ("name", entry.Name), ("error", e.Message)), error: true);
                 RefreshPartsList();
                 return;
             }
@@ -5988,7 +6007,7 @@ namespace GraveBuilder
             _canvas?.Repaint();
             RefreshClipboardButtons();
             int empty = cells.Count(c => !c.Cell.HasValue);
-            SetStatus($"Loaded part '{name}' ({cells.Count} cells{(empty > 0 ? $", {empty} empty" : "")}) and entered paste mode. Left-click to stamp it; right-click or CANCEL PASTE stops.");
+            SetStatus(Loc.F("gravebuilder.parts.status_loaded", "Loaded part '{name}' ({n} cells{empty_note}) and entered paste mode. Left-click to stamp it; right-click or CANCEL PASTE stops.", ("name", name), ("n", cells.Count), ("empty_note", empty > 0 ? Loc.F("gravebuilder.parts.status_loaded_empty_note", ", {empty} empty", ("empty", empty)) : "")));
             // Done picking a part: back to the painting view to stamp it.
             CloseLibrary();
         }
@@ -6003,11 +6022,11 @@ namespace GraveBuilder
                     File.Delete(entry.Path);
                 }
                 RefreshPartsList();
-                SetStatus($"Deleted part '{entry.Name}' ({Path.GetFileName(entry.Path)}). The clipboard is unchanged.");
+                SetStatus(Loc.F("gravebuilder.parts.status_deleted", "Deleted part '{name}' ({file}). The clipboard is unchanged.", ("name", entry.Name), ("file", Path.GetFileName(entry.Path))));
             }
             catch (Exception e)
             {
-                SetStatus($"Deleting part '{entry.Name}' failed: {e.Message}", error: true);
+                SetStatus(Loc.F("gravebuilder.parts.status_delete_failed", "Deleting part '{name}' failed: {error}", ("name", entry.Name), ("error", e.Message)), error: true);
             }
         }
     }

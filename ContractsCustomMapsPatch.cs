@@ -54,7 +54,7 @@ namespace GraveBuilder
                     return; // never show an empty header
                 }
 
-                list.Add((VisualElement)ListHeaderMethod.Invoke(null, new object[] { "CUSTOM MAPS" }));
+                list.Add((VisualElement)ListHeaderMethod.Invoke(null, new object[] { Loc.T("gravebuilder.contracts.custom_maps_header", "CUSTOM MAPS") }));
                 foreach (StructureDef def in custom)
                 {
                     AddRowMethod.Invoke(__instance, new object[] { list, def, false });

@@ -20,22 +20,8 @@ namespace GraveBuilder
         public const string PluginName = "GraveBuilder";
         public const string PluginVersion = PluginVersionInfo.Version; // set in mods\Versions.props
 
-        private const KeyCode MapBuilderKey = KeyCode.F7;
-        // Dev-only auto-open: drop this file next to the DLL and the next launch opens straight
-        // into the map builder (library open on its STRUCTURES tab, every
-        // stage's ADVANCED OPTIONS expanded) with no clicks needed — for
-        // eyeballing a UI change, by a human or by Claude's computer-use, right after a
-        // build-deploy-relaunch cycle. Never created automatically; delete it to go back to a
-        // normal boot. See MapBuilderScreen.PrepareDevTestOpen/FinishDevTestOpen, and
-        // Patches.MainMenuBuilderButtonPatch (actually triggers it — see that file for why).
-        internal const string DevTestBootFileName = "devtest_boot.flag";
-
         internal static ManualLogSource Log;
         internal static string OverrideFilePath;
-        internal static string DevTestBootFilePath;
-        // Set by MainMenuBuilderButtonPatch once it has called PrepareDevTestOpen(); this
-        // Update() loop just waits for Open()'s wipe animation to land, then finishes the job.
-        internal static bool DevTestOpening;
 
         private void Awake()
         {
@@ -43,7 +29,6 @@ namespace GraveBuilder
 
             string pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             OverrideFilePath = Path.Combine(pluginDir, "sandbox_map.json");
-            DevTestBootFilePath = Path.Combine(pluginDir, DevTestBootFileName);
 
             Log.LogInfo($"Watching for sandbox map override at: {OverrideFilePath}");
 
@@ -51,22 +36,18 @@ namespace GraveBuilder
             harmony.PatchAll();
 
             Log.LogInfo("Harmony patches applied — SandboxMap.ActiveOverride/ActivePath unlocked.");
-            Log.LogInfo($"Hold Ctrl and press {MapBuilderKey} to open/close the map builder.");
+            Log.LogInfo($"Hold Ctrl and press {ShortcutBindings.Get(ShortcutBindings.ToggleBuilder)} to open/close the map builder.");
         }
 
         private void Update()
         {
-            // Ctrl+F7 toggles the map builder (the framework's hot-reload is now a RELOAD MODS
-            // button on the main menu's Mods page, not a hotkey).
-            if ((In.KeyHeld(KeyCode.LeftControl) || In.KeyHeld(KeyCode.RightControl)) && In.KeyDown(MapBuilderKey))
+            // Ctrl + the toggle key (F7 by default, rebindable in Settings > Controls, see
+            // ShortcutBindings; KeyCode.None = unbound) toggles the map builder (the framework's
+            // hot-reload is now a RELOAD MODS button on the main menu's Mods page, not a hotkey).
+            KeyCode toggleKey = ShortcutBindings.Get(ShortcutBindings.ToggleBuilder);
+            if (toggleKey != KeyCode.None && (In.KeyHeld(KeyCode.LeftControl) || In.KeyHeld(KeyCode.RightControl)) && In.KeyDown(toggleKey))
             {
                 MapBuilderScreen.Toggle();
-            }
-
-            if (DevTestOpening && MapBuilderScreen.IsOpen)
-            {
-                DevTestOpening = false;
-                MapBuilderScreen.FinishDevTestOpen();
             }
         }
     }
