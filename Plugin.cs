@@ -22,8 +22,8 @@ namespace GraveBuilder
 
         private const KeyCode MapBuilderKey = KeyCode.F7;
         // Dev-only auto-open: drop this file next to the DLL and the next launch opens straight
-        // into the map builder (Advanced mode, library open on LOAD STRUCTURE/EXPORT AS
-        // STRUCTURE, every stage's ADVANCED OPTIONS expanded) with no clicks needed — for
+        // into the map builder (library open on its STRUCTURES tab, every
+        // stage's ADVANCED OPTIONS expanded) with no clicks needed — for
         // eyeballing a UI change, by a human or by Claude's computer-use, right after a
         // build-deploy-relaunch cycle. Never created automatically; delete it to go back to a
         // normal boot. See MapBuilderScreen.PrepareDevTestOpen/FinishDevTestOpen, and
@@ -57,7 +57,7 @@ namespace GraveBuilder
         private void Update()
         {
             // Ctrl+F7 toggles the map builder (the framework's hot-reload is now a RELOAD MODS
-            // button on the Contracts page, not a hotkey).
+            // button on the main menu's Mods page, not a hotkey).
             if ((In.KeyHeld(KeyCode.LeftControl) || In.KeyHeld(KeyCode.RightControl)) && In.KeyDown(MapBuilderKey))
             {
                 MapBuilderScreen.Toggle();

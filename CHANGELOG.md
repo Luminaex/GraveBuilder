@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0
+
+- Replaced the Simple/Advanced mode toggle with a single unified map/palette/tools view.
+- Reorganized the library panel into tabs (STRUCTURES/PARTS/IMAGE/EXPORT), each with its own
+  detail or preview pane, replacing the old combined "Structures & Parts" view.
+- Fixed the library's top title pill: it now shows the active tab's name (was always stuck on
+  the old combined label) and sits correctly centred in its box.
+- Brush size now reads 1-11 instead of 0-10, since "brush size 1" better reads as one cell than
+  "brush size 0" did.
+
 ## v1.0.0
 
 Initial release.

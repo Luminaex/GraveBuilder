@@ -20,9 +20,8 @@ namespace GraveBuilder
     // loads it, see Patches.cs) or export it as a content/structures/ contract (the export
     // runs the framework's reload, RELOAD MODS's path, so it's live at once). Existing structures (our
     // own exports and the game's catalogue) can be loaded back in to edit, and our own
-    // exports deleted (with a confirm). Opening, closing and the Simple/Advanced switch run
-    // behind the game's hex wipe (WipeSwap); Ctrl+Z/Y/C/X/V work in the painting view
-    // (OnShortcutKey).
+    // exports deleted (with a confirm). Opening and closing run behind the game's hex wipe
+    // (WipeSwap); Ctrl+Z/Y/C/X/V work in the painting view (OnShortcutKey).
     // Button explanations are hover tooltips (AttachTooltip), not static paragraphs.
     //
     // Styled with the game's own UI toolkits (TerminalUi.Frame shell, MetaUi buttons, heads,
@@ -38,25 +37,26 @@ namespace GraveBuilder
     // toggle keys sits over its top edge (PALETTE, TOOLS, MAP on the right), and each key
     // shows/hides its own floating panel dropped down under it; any number can be open at
     // once. These are the "ongoing tool" panels you keep open while painting. The library
-    // (Advanced only, STRUCTURES & PARTS in the foot band): a modal overlay (dim backdrop +
-    // centred card) over the still-live painting view, styled like the game's Contracts list
-    // (section heads, slab rows), with four sections: LOAD STRUCTURE, LOAD IMAGE (a PNG/JPEG
-    // painted in the substrate colours), LOAD PART (and save the clipboard as one), EXPORT AS
-    // STRUCTURE (contract details + band editor). Each section is collapsible: clicking its
-    // head (▸ closed, ▾ open) shows or hides it, all four start collapsed, and which are open
-    // is remembered like the floating panels (_librarySectionOpen). Controls are compact
-    // (paired fields, chip-sized toggles, short rows) with detail in tooltips. BACK TO MAP
-    // just removes the overlay (instant, no rebuild, no wipe); the painting view under it
-    // was never torn down.
+    // (STRUCTURES & PARTS in the foot band): a modal overlay (dim backdrop + a second
+    // TerminalUi.Frame at Frame()'s own near-fullscreen size) over the still-live painting
+    // view, laid out like the game's Contracts screen. A tab row across the top picks one of
+    // four pages: STRUCTURES and PARTS are Contracts-style splits (slab rows on the left,
+    // click to select, double-click to load; a detail pane on the right with the selected
+    // entry's description and actions), IMAGE (a PNG/JPEG painted in the substrate colours)
+    // and EXPORT (contract details + band editor) are plain scrolling forms. All four pages
+    // are built once per open and only shown/hidden, so a form's half-typed values and the
+    // lists stay live behind an inactive tab; the current tab is remembered like the floating
+    // panels (_libraryTab). Controls are compact (paired fields, chip-sized toggles, short
+    // rows) with detail in tooltips. BACK TO MAP just removes the overlay (instant, no
+    // rebuild, no wipe); the painting view under it was never torn down.
     //
-    // Two modes, switched by the MODE key in the foot band and remembered in
-    // mapbuilder_prefs.json: Simple (default; PALETTE/TOOLS/MAP with colours + erase, brush
-    // size, undo/redo, reset view, sandbox-override actions) and Advanced (adds the live stats
-    // readout in the foot band, the library view, and the full PALETTE/TOOLS/MAP: special
-    // tiles, fill/mirror, line/circle drag tools, select (with auto-fill loops) +
-    // copy/cut/paste, a brush-footprint preview on the canvas, radius/grow). The brush size
-    // control (slider + number box) is the same in both modes. Saved parts are the clipboard
-    // written to parts/<name>.json next to the DLL.
+    // One panel set (PALETTE/TOOLS/MAP) with everything: substrate layers + special tiles,
+    // fill/mirror, line/circle drag tools, select (with auto-fill loops) + copy/cut/paste, a
+    // brush-footprint preview on the canvas, radius/grow, the live stats readout in the foot
+    // band, and the library view. There used to be a Simple/Advanced mode split, stripping
+    // the above down to just colours/erase/brush/undo/reset/sandbox-override for a first-run
+    // user; removed (2026-11-24) once the UX no longer needed it. Saved parts are the
+    // clipboard written to parts/<name>.json next to the DLL.
     internal sealed class MapBuilderScreen : MonoBehaviour, IHexCanvasHost
     {
         // Same stock PanelSettings GameRoot.TryBuildBoostersScreen hands BoostersScreen.Create.
@@ -81,11 +81,6 @@ namespace GraveBuilder
         private const int DefaultStartingMoney = 500;
         private const string DefaultId = "builder_map";
         private const string DefaultName = "Builder Map";
-
-        // Simple/Advanced layout preference, next to this plugin's DLL (Plugin.OverrideFilePath's
-        // pattern), so the choice survives game restarts.
-        private const string PrefsFileName = "mapbuilder_prefs.json";
-        private const string PrefsAdvancedKey = "advancedMode";
 
         // Undo history bounds: entries, and total recorded cells across both stacks (a New on
         // a radius-300 map records ~270k cells, so the entry cap alone isn't a memory bound).
@@ -131,7 +126,7 @@ namespace GraveBuilder
 
         private static readonly Regex IdPattern = new Regex("^[a-z0-9_]+$");
 
-        // Saved parts (the library view's LOAD PART section): one JSON file per part in a parts/ folder next to
+        // Saved parts (the library view's PARTS tab): one JSON file per part in a parts/ folder next to
         // this plugin's DLL. The file name is the part name squeezed down to IdPattern's
         // character set (runs of anything else become one '_'), capped in length.
         private const string PartsDirName = "parts";
@@ -241,12 +236,11 @@ namespace GraveBuilder
         private const string PanelTools = "tools";
         private const string PanelMap = "map";
 
-        // Library view: content column width cap (it's a list page, not a full-bleed canvas)
-        // and the inner list heights, so a long game catalogue doesn't push LOAD PART and
-        // EXPORT far down the page.
+        // Library view: the form pages' (IMAGE, EXPORT) column width cap, since a form
+        // stretched across the near-fullscreen frame reads as a few fields lost in empty
+        // space; and the list column's width on the list+detail pages (STRUCTURES, PARTS).
         private const float LibraryMaxWidth = 1200f;
-        private const float LoadListMaxHeight = 620f;
-        private const float PartsListMaxHeight = 460f;
+        private const float LibraryListWidth = 640f;
         // Warnings in the export form (a valid value with a consequence worth knowing). Was
         // TerminalUi.Orange, which vanished into the orange accent; the terminal's warm red
         // still stands apart from it and from the pinker MetaUi.Crimson used for errors.
@@ -277,6 +271,16 @@ namespace GraveBuilder
             public StructureDef Def;    // Catalogue: the game's StructureDef
         }
 
+        // ---- library tabs ------------------------------------------------------------------
+
+        private enum LibraryTab
+        {
+            Structures,
+            Parts,
+            Image,
+            Export
+        }
+
         // ---- saved parts list --------------------------------------------------------------
 
         private sealed class PartEntry
@@ -296,42 +300,36 @@ namespace GraveBuilder
         private static int _brush;
         private static bool _fillMode;
         private static bool _mirror;
-        // Advanced-only LINE / CIRCLE drag tools (see "line & circle tools" below). Exclusive
-        // with each other and with fill mode and SELECT; paused in Simple like fill/mirror.
+        // LINE / CIRCLE drag tools (see "line & circle tools" below). Exclusive with each
+        // other and with fill mode and SELECT.
         private static bool _lineMode;
         private static bool _circleMode;
 
-        // Advanced-only selection + clipboard (see "selection & clipboard" below). The
-        // selection is a set of axial positions, independent of what's painted there; the
-        // clipboard is the last Copy/Cut, as offsets from its anchor. Paste placement is
-        // cancelled on switching to Simple; SELECT is just paused, like fill/mirror.
+        // Selection + clipboard (see "selection & clipboard" below). The selection is a set of
+        // axial positions, independent of what's painted there; the clipboard is the last
+        // Copy/Cut, as offsets from its anchor.
         private static bool _selectMode;
         private static bool _pasteMode;
         // AUTO-FILL LOOPS: after each SELECT add-drag, cells the selection fully encloses are
-        // selected too (FillEnclosedSelection). Only affects SELECT; Advanced only.
+        // selected too (FillEnclosedSelection). Only affects SELECT.
         private static bool _autoFillLoops;
         private static readonly HashSet<Vector2Int> _selection = new HashSet<Vector2Int>();
         private static readonly List<ClipCell> _clipboard = new List<ClipCell>();
 
-        // Simple (default) or Advanced panel set. Loaded from PrefsFileName the first time Open
-        // runs, saved on every toggle.
-        private static bool _advancedMode;
-        private static bool _prefsLoaded;
-
-        // Which floating panels are open; kept across close/reopen and mode toggles (an
-        // Advanced-only panel's flag just waits while Simple doesn't build it). PALETTE starts
-        // open so there's something to paint with straight away.
+        // Which floating panels are open; kept across close/reopen. PALETTE starts open so
+        // there's something to paint with straight away.
         private static readonly Dictionary<string, bool> _panelOpen = new Dictionary<string, bool> { [PanelPalette] = true };
-        // Which library sections are expanded, by head title; same lifetime as _panelOpen.
-        // Empty to start, so the page opens as four one-line heads.
-        private static readonly Dictionary<string, bool> _librarySectionOpen = new Dictionary<string, bool>();
+        // Which library tab is showing; same lifetime as _panelOpen.
+        private static LibraryTab _libraryTab = LibraryTab.Structures;
 
         private static readonly List<Edit> _undo = new List<Edit>();
         private static readonly List<Edit> _redo = new List<Edit>();
 
         // Form values, kept as the raw text so a half-typed value survives a rebuild.
         private static string _radiusText = DefaultRadius.ToString();
-        private static string _brushText = "0";
+        // Displayed 1-based (see BuildBrushControl's BrushDisplayOffset) even though the
+        // underlying _brush is the 0-based radius used everywhere else in this file.
+        private static string _brushText = "1";
         private static string _idText = DefaultId;
         private static string _nameText = DefaultName;
         private static string _moneyText = DefaultStartingMoney.ToString();
@@ -354,10 +352,10 @@ namespace GraveBuilder
         private UIDocument _doc;
         private PanelSettings _panelCopy;
         private HexCanvas _canvas;
-        // Whether the library overlay (STRUCTURES & PARTS, Advanced only) is up over the
-        // painting view. Per instance, so reopening the builder always starts on the canvas.
+        // Whether the library overlay (STRUCTURES & PARTS) is up over the painting view. Per
+        // instance, so reopening the builder always starts on the canvas.
         private bool _libraryOpen;
-        // The library overlay's root (dim backdrop + centred frame), a later sibling of the
+        // The library overlay's root (dim backdrop + its frame), a later sibling of the
         // painting frame under root; null while closed.
         private VisualElement _libraryOverlay;
         // Fills the painting frame's body: the canvas plus everything floating over it. Always
@@ -387,16 +385,28 @@ namespace GraveBuilder
         // on every selection change rather than patched in place — selection is infrequent and a
         // full rebuild is far simpler than tracking each piece.
         private VisualElement _loadDetailHost;
+        // The library's tab row (rebuilt on a switch, like RefreshPanelKey) and each tab's
+        // page, shown or hidden by ShowLibraryTab. _libraryCentreTitle is the ring's top-centre
+        // label (set once per the comment where it's built) kept in sync with the active tab by
+        // ShowLibraryTab, same as the tab row itself.
+        private VisualElement _libraryTabRow;
+        private Label _libraryCentreTitle;
+        private readonly Dictionary<LibraryTab, VisualElement> _libraryTabPages = new Dictionary<LibraryTab, VisualElement>();
         private VisualElement _partSaveHost;
         private VisualElement _partsListHost;
+        // The PARTS tab's detail pane, as _loadDetailHost.
+        private VisualElement _partDetailHost;
         private TextField _partNameField;
         private TextField _radiusField;
         private TextField _imagePathField;
         private TextField _imageSizeField;
         private TextField _imageAlphaField;
         private VisualElement _imageOptionsHost;
-        // One-line summaries on the LOAD STRUCTURE / LOAD PART heads, kept current by the
-        // list rebuilds so a collapsed section still says what's in it.
+        // The IMAGE tab's preview pane and the texture it's currently showing (RefreshImagePreview).
+        private VisualElement _imagePreviewHost;
+        private Texture2D _imagePreviewTex;
+        // One-line counts over the STRUCTURES / PARTS list columns, kept current by the list
+        // rebuilds.
         private Label _loadSummary;
         private Label _partsSummary;
         private SliderInt _radiusSlider;
@@ -425,6 +435,10 @@ namespace GraveBuilder
 
         private readonly List<PartEntry> _partEntries = new List<PartEntry>();
         private int _partsSkipped;
+        // As _loadRowPaint / _loadSelected / _loadHover, for the parts list (PaintPartRows).
+        private readonly List<(SlabFrame frame, Label name, Color family)> _partRowPaint = new List<(SlabFrame, Label, Color)>();
+        private int _partSelected = -1;
+        private int _partHover = -1;
 
         // Hover tooltip (see "hover tooltips" below): one shared box on the stage, rebuilt
         // with it, and the element whose text it is showing right now.
@@ -532,11 +546,6 @@ namespace GraveBuilder
             {
                 _map = SandboxMap.NewFilled(DefaultRadius);
             }
-            if (!_prefsLoaded)
-            {
-                _advancedMode = LoadAdvancedPref();
-                _prefsLoaded = true;
-            }
 
             GameObject go = new GameObject("MapBuilderScreen");
             MapBuilderScreen screen = go.AddComponent<MapBuilderScreen>();
@@ -585,11 +594,9 @@ namespace GraveBuilder
 
         // ---- UI construction ----------------------------------------------------------
 
-        // Rebuilds the whole screen from the static state: on open and when the Simple/Advanced
-        // toggle flips. Simple and Advanced are two separate sets of floating panels
-        // (SimplePanels / AdvancedPanels) over the same shared state, so switching never loses
-        // work. The library is not a view this switches between: it's an overlay added on top
-        // of the painting view (ShowLibrary / CloseLibrary) without a rebuild.
+        // Rebuilds the whole screen from the static state: on open. The library is not a view
+        // this switches between: it's an overlay added on top of the painting view (ShowLibrary
+        // / CloseLibrary) without a rebuild.
         private void Build(VisualElement root)
         {
             root.Clear();
@@ -625,6 +632,11 @@ namespace GraveBuilder
             _loadListHost = null;
             _loadDetailHost = null;
             _loadHolders.Clear();
+            _libraryTabRow = null;
+            _libraryTabPages.Clear();
+            _partRowPaint.Clear();
+            _partHover = -1;
+            _partDetailHost = null;
             _partSaveHost = null;
             _partsListHost = null;
             _partNameField = null;
@@ -633,6 +645,8 @@ namespace GraveBuilder
             _imageSizeField = null;
             _imageAlphaField = null;
             _imageOptionsHost = null;
+            _imagePreviewHost = null;
+            _imagePreviewTex = null;
             _loadSummary = null;
             _partsSummary = null;
             _radiusSlider = null;
@@ -648,12 +662,6 @@ namespace GraveBuilder
             root.style.bottom = 0f;
             root.style.backgroundColor = new Color(0f, 0f, 0f, 0.8f);
             TryApplyFont(root);
-
-            // The library is Advanced-only (Simple has nothing to show in it).
-            if (!_advancedMode)
-            {
-                _libraryOpen = false;
-            }
 
             // Shell: the game's terminal frame (chamfered glass panel, header band, foot band).
             // Always the painting view; the library is an overlay on top of it (ShowLibrary).
@@ -716,10 +724,10 @@ namespace GraveBuilder
             }
         }
 
-        // Ctrl+Z undo; Ctrl+Y or Ctrl+Shift+Z redo; Ctrl+C / Ctrl+X / Ctrl+V copy, cut, paste
-        // (Advanced only, like their buttons). The painting view only: the library has no
-        // selection or clipboard actions. Never while a text field has focus, so Ctrl+V/C/X/Z
-        // keep editing the text in Image path, Part name and the rest.
+        // Ctrl+Z undo; Ctrl+Y or Ctrl+Shift+Z redo; Ctrl+C / Ctrl+X / Ctrl+V copy, cut, paste.
+        // The painting view only: the library has no selection or clipboard actions. Never
+        // while a text field has focus, so Ctrl+V/C/X/Z keep editing the text in Image path,
+        // Part name and the rest.
         private void OnShortcutKey(KeyDownEvent e)
         {
             if (!e.ctrlKey || _libraryOpen || _instance != this || _doc == null)
@@ -746,13 +754,13 @@ namespace GraveBuilder
                 case KeyCode.Y:
                     Redo();
                     break;
-                case KeyCode.C when _advancedMode:
+                case KeyCode.C:
                     Copy();
                     break;
-                case KeyCode.X when _advancedMode:
+                case KeyCode.X:
                     Cut();
                     break;
-                case KeyCode.V when _advancedMode:
+                case KeyCode.V:
                     // Starts placement, like PASTE; unlike the button it never cancels it, since
                     // a second Ctrl+V reads as "paste again", which placement already does.
                     if (!PasteModeActive)
@@ -785,13 +793,13 @@ namespace GraveBuilder
         }
 
         // The painting view: canvas, key bar, floating panels; foot band with the hovered-cell
-        // readout, the stats readout (Advanced) and the screen keys.
+        // readout, the stats readout and the screen keys.
         private void BuildPaintingView(VisualElement body, VisualElement foot)
         {
-            // Foot: hovered-cell readout on the left; on the right, the stats readout
-            // (Advanced) then the keys (library, mode toggle, CLOSE). The right group is its
-            // own row so the readout sits beside the keys rather than mid-band; FootKeys is
-            // given that row, so the foot's right padding is cleared here as FootKeys would.
+            // Foot: hovered-cell readout on the left; on the right, the stats readout then the
+            // keys (library, CLOSE). The right group is its own row so the readout sits beside
+            // the keys rather than mid-band; FootKeys is given that row, so the foot's right
+            // padding is cleared here as FootKeys would.
             _hoverLabel = MetaUi.Text("CELL  -", MetaUi.Face.BodyBold, 18f, DimText, 2f);
             _hoverLabel.style.flexShrink = 1f;
             foot.Add(_hoverLabel);
@@ -803,20 +811,10 @@ namespace GraveBuilder
             right.style.flexShrink = 0.2f;
             right.style.minWidth = 0f;
             foot.Add(right);
-            if (_advancedMode)
-            {
-                right.Add(BuildStatsReadout());
-            }
+            right.Add(BuildStatsReadout());
             VisualElement keys = TerminalUi.FootKeys(right, 18f);
             keys.style.flexShrink = 0f;
-            if (_advancedMode)
-            {
-                keys.Add(TerminalUi.FootKey("map-builder-library", "STRUCTURES & PARTS", Accent, OpenLibrary, primary: false, 440f));
-            }
-            keys.Add(AttachTooltip(TerminalUi.FootKey("map-builder-mode", _advancedMode ? "MODE: ADVANCED" : "MODE: SIMPLE", Accent, ToggleModeNow, primary: false, 330f),
-                _advancedMode
-                    ? "Click to switch to Simple mode: just colours, basic painting and the quick sandbox-override test. Hides special tiles, selection/clipboard, and the STRUCTURES & PARTS library."
-                    : "Click to switch to Advanced mode: adds special tiles (enemies/pickups), selection & clipboard, and the STRUCTURES & PARTS library for publishing a real contract."));
+            keys.Add(TerminalUi.FootKey("map-builder-library", "STRUCTURES & PARTS", Accent, OpenLibrary, primary: false, 440f));
             keys.Add(TerminalUi.FootKey("map-builder-close", "CLOSE", Accent, Close, primary: true, 280f));
 
             // Stage: fills the body. Children in paint/pick order (later = on top): canvas,
@@ -829,8 +827,6 @@ namespace GraveBuilder
             body.Add(_stage);
             _tipStage = _stage;
 
-            // Kept across a mode-toggle rebuild (re-parented into the new stage) so zoom and pan
-            // survive; HexCanvas holds no panel-attach state, only the view and stroke state.
             // flexGrow 1 (its own constructor) fills the stage; it fits the grid to whatever
             // rect it gets on every draw.
             if (_canvas == null)
@@ -850,7 +846,7 @@ namespace GraveBuilder
             _statusHost.style.bottom = PanelEdge;
             _stage.Add(_statusHost);
 
-            _panelDefs = _advancedMode ? AdvancedPanels() : SimplePanels();
+            _panelDefs = Panels();
 
             // Key bar across the top of the canvas. Ignore-picking (as are the key hosts and the
             // spacer) so only the keys themselves take clicks; the gaps between them still
@@ -899,7 +895,7 @@ namespace GraveBuilder
             RefreshHistoryButtons();
         }
 
-        // Live map stats (Advanced, painting view): a compact two-line block in the foot band
+        // Live map stats (painting view): a compact two-line block in the foot band
         // beside the keys, in place of the old STATS panel. Line 1: total cells, radius,
         // special tiles; line 2: per-layer counts, each behind a chip of that layer's exact
         // colour (StructureSilhouette.LayerColour, as the swatches/canvas use). The value
@@ -966,12 +962,130 @@ namespace GraveBuilder
             _statValues[id] = value;
         }
 
+        // ---- library console ring ------------------------------------------------------
+        // A from-scratch copy of the game's own CassetteConsoleChrome.ArtFrame (private there,
+        // so not callable directly): the same textured picture-frame ring with chamfered
+        // corners — four quads cut from the art texture's border band plus four rounded-corner
+        // wedges filled with its ring colour — drawn with the game's own real border art
+        // (Assets/UI/Textures/UI_BG1.png), not CassetteConsoleChrome.Attach's full screen
+        // takeover (tried 2026-11-24: forces its own fixed 2560x1440 canvas and assumes it owns
+        // the whole root, which broke badly nested inside this overlay — see the ShowLibrary/
+        // BuildLibraryView git history for what that looked like). Proportional to its own
+        // contentRect, so it works at whatever size it's given, not just 2560x1440.
+        private const float ArtFrameHoleX0 = 0.023828125f;
+        private const float ArtFrameHoleY0 = 0.10972222f;
+        private const float ArtFrameHoleX1 = 0.9753906f;
+        private const float ArtFrameHoleY1 = 0.8715278f;
+        private const float ArtFrameCornerR = 1f / 64f;
+        private static readonly Color ArtFrameRingColor = new Color(29f / 85f, 0.35686275f, 0.41960785f);
+
+        // The ring art's own centre-title slot (shows "HOME"/"CAMPAIGN"/etc. on the real
+        // mode-select screen, in the same CassetteConsoleChrome ring this overlay reuses).
+        // Measured directly off the real con-artbox--c element's worldBound at runtime (a
+        // temporary Harmony postfix on CassetteConsoleChrome.AttachCore, logged against the
+        // 2560x1440 design canvas, then removed) rather than guessed — same fraction-of-own-rect
+        // approach as ArtFrameHoleX0 etc. above, confirmed transferable since this overlay and
+        // the real chrome's canvas both render at the same 16:9 ratio.
+        private const float CentreTitleBoxX0 = 0.43906f;
+        private const float CentreTitleBoxX1 = 0.55898f;
+        private const float CentreTitleBoxY0 = 0.03403f;
+        private const float CentreTitleBoxY1 = 0.06458f;
+
+        private sealed class LibraryArtFrame : VisualElement
+        {
+            private readonly Texture2D _tex;
+
+            public LibraryArtFrame(Texture2D tex)
+            {
+                _tex = tex;
+                pickingMode = PickingMode.Ignore;
+                generateVisualContent += Gen;
+            }
+
+            private void Gen(MeshGenerationContext mgc)
+            {
+                if (_tex == null)
+                {
+                    return;
+                }
+                Rect r = contentRect;
+                if (r.width < 1f || r.height < 1f)
+                {
+                    return;
+                }
+                float x0 = r.width * ArtFrameHoleX0;
+                float y0 = r.height * ArtFrameHoleY0;
+                float x1 = r.width * ArtFrameHoleX1;
+                float y1 = r.height * ArtFrameHoleY1;
+                float cr = r.width * ArtFrameCornerR;
+                MeshWriteData mwd = mgc.Allocate(16, 24, _tex);
+                // Deprecated in favour of automatic UV remapping, but this is a straight copy of
+                // the game's own (still-shipping) ArtFrame.Gen, which targets the older API.
+#pragma warning disable CS0618
+                Rect uvR = mwd.uvRegion;
+#pragma warning restore CS0618
+                int vi = 0;
+                ushort[] idx = new ushort[24];
+                int ii = 0;
+                Quad(0f, 0f, r.width, y0);
+                Quad(0f, y1, r.width, r.height);
+                Quad(0f, y0, x0, y1);
+                Quad(x1, y0, r.width, y1);
+                for (int i = 0; i < idx.Length; i++)
+                {
+                    mwd.SetNextIndex(idx[i]);
+                }
+                Painter2D p = mgc.painter2D;
+                p.fillColor = ArtFrameRingColor;
+                Corner(x0 + cr, y0 + cr, x0, y0, x0 + cr, y0, 270f, 180f);
+                Corner(x1 - cr, y0 + cr, x1, y0, x1, y0 + cr, 0f, -90f);
+                Corner(x1 - cr, y1 - cr, x1, y1, x1 - cr, y1, 90f, 0f);
+                Corner(x0 + cr, y1 - cr, x0, y1, x0, y1 - cr, 180f, 90f);
+
+                void Corner(float cx, float cy, float ax, float ay, float bx, float by, float a0, float a1)
+                {
+                    p.BeginPath();
+                    p.MoveTo(new Vector2(ax, ay));
+                    p.LineTo(new Vector2(bx, by));
+                    p.Arc(new Vector2(cx, cy), cr, a0, a1, ArcDirection.CounterClockwise);
+                    p.ClosePath();
+                    p.Fill();
+                }
+                void Quad(float ax, float ay, float bx, float by)
+                {
+                    V(ax, ay);
+                    V(bx, ay);
+                    V(bx, by);
+                    V(ax, by);
+                    idx[ii++] = (ushort)vi;
+                    idx[ii++] = (ushort)(vi + 1);
+                    idx[ii++] = (ushort)(vi + 2);
+                    idx[ii++] = (ushort)(vi + 2);
+                    idx[ii++] = (ushort)(vi + 3);
+                    idx[ii++] = (ushort)vi;
+                    vi += 4;
+                }
+                void V(float px, float py)
+                {
+                    float u = px / r.width;
+                    float v = 1f - py / r.height;
+                    mwd.SetNextVertex(new Vertex
+                    {
+                        position = new Vector3(px, py, Vertex.nearZ),
+                        tint = Color.white,
+                        uv = new Vector2(uvR.xMin + u * uvR.width, uvR.yMin + v * uvR.height)
+                    });
+                }
+            }
+        }
+
         // ---- library overlay ---------------------------------------------------------
-        // STRUCTURES & PARTS (Advanced only): a modal over the still-live painting view, the
+        // STRUCTURES & PARTS: a modal over the still-live painting view, the
         // way the game's SETTINGS sits over whatever opened it: a full-screen dim backdrop and
-        // a centred TerminalUi.Frame card. Laid out like the game's Contracts list
-        // (ModeSelectController.FillOvertimeList / AddRow): section heads, eyebrow sub-heads,
-        // slab rows that light up on hover and selection. It only reads and writes the load
+        // a TerminalUi.Frame at its own default size. Laid out like the game's Contracts screen
+        // (ModeSelectController.FillOvertimeList / AddRow): a tab per page, eyebrow sub-heads,
+        // slab rows that light up on hover and selection beside a detail pane for the selected
+        // one. It only reads and writes the load
         // list, the parts list and the export form, never the map/selection/clipboard/undo
         // (except through the LOAD actions).
         //
@@ -981,14 +1095,9 @@ namespace GraveBuilder
         // this screen, and routing an in-screen panel change through it sent the player to
         // the main menu on close (seen live, repeatedly).
 
-        // Narrower than the first version (1600) — at that width the rows/fields read as
-        // small content floating in a lot of empty horizontal space; this tightens it up.
-        private const float LibraryCardWidth = 1200f;
-        private const float LibraryCardHeight = 1040f;
-
         private void OpenLibrary()
         {
-            if (!_advancedMode || _libraryOpen || _doc == null || _doc.rootVisualElement == null)
+            if (_libraryOpen || _doc == null || _doc.rootVisualElement == null)
             {
                 return;
             }
@@ -1002,27 +1111,15 @@ namespace GraveBuilder
         // otherwise. Split in two because Open() plays a ~1.2s wipe animation before the screen
         // (and _doc) actually exists — Plugin's Update() calls PrepareDevTestOpen() once, then
         // polls IsOpen and calls FinishDevTestOpen() the frame it flips true. State that Build()
-        // reads (_advancedMode, _bands, _librarySectionOpen) has to be set before Open() so the
-        // very first build already reflects it; OpenLibrary() needs _doc, so it can only happen
-        // after.
+        // reads (_bands, _libraryTab) has to be set before Open() so the very first
+        // build already reflects it; OpenLibrary() needs _doc, so it can only happen after.
         internal static void PrepareDevTestOpen()
         {
-            if (!_prefsLoaded)
-            {
-                _advancedMode = LoadAdvancedPref();
-                _prefsLoaded = true;
-            }
-            if (!_advancedMode)
-            {
-                _advancedMode = true;
-                SaveAdvancedPref(true);
-            }
             if (_bands.Count == 0)
             {
                 _bands.Add(DefaultBand());
             }
-            _librarySectionOpen["LOAD STRUCTURE"] = true;
-            _librarySectionOpen["EXPORT AS STRUCTURE"] = true;
+            _libraryTab = LibraryTab.Structures;
             Open();
         }
 
@@ -1065,6 +1162,11 @@ namespace GraveBuilder
             _loadListHost = null;
             _loadDetailHost = null;
             _loadHolders.Clear();
+            _libraryTabRow = null;
+            _libraryTabPages.Clear();
+            _partRowPaint.Clear();
+            _partHover = -1;
+            _partDetailHost = null;
             _partSaveHost = null;
             _partsListHost = null;
             _partNameField = null;
@@ -1072,6 +1174,12 @@ namespace GraveBuilder
             _imageSizeField = null;
             _imageAlphaField = null;
             _imageOptionsHost = null;
+            _imagePreviewHost = null;
+            if (_imagePreviewTex != null)
+            {
+                UnityEngine.Object.Destroy(_imagePreviewTex);
+                _imagePreviewTex = null;
+            }
             _loadSummary = null;
             _partsSummary = null;
             _idField = null;
@@ -1096,9 +1204,10 @@ namespace GraveBuilder
             _paintTooltipText = _tooltipText;
             _paintStatusHost = _statusHost;
 
-            // Dim backdrop over the whole screen. Position picking: it takes every pointer and
-            // wheel event outside the card, and the canvas is not its ancestor, so nothing
-            // propagates to the painting view underneath (modal, like ModalKit's dim).
+            // Dim backdrop over the whole screen, behind the ring below (a fallback if its
+            // texture fails to load). Position picking: it takes every pointer and wheel event
+            // outside the card, and the canvas is not its ancestor, so nothing propagates to
+            // the painting view underneath (modal, like ModalKit's dim).
             _libraryOverlay = new VisualElement { name = "map-builder-library-overlay", pickingMode = PickingMode.Position };
             _libraryOverlay.style.position = Position.Absolute;
             _libraryOverlay.style.left = 0f;
@@ -1108,17 +1217,55 @@ namespace GraveBuilder
             _libraryOverlay.style.backgroundColor = new Color(0f, 0f, 0f, 0.7f);
             root.Add(_libraryOverlay);
 
-            // The game's terminal frame, resized from Frame()'s near-fullscreen inset to a
-            // centred card (Frame16x9.Pin's centring: left/top 50%, negative half-size margins).
-            VisualElement frame = TerminalUi.Frame(_libraryOverlay, Accent, "MAP BUILDER · STRUCTURES & PARTS", out VisualElement body, out VisualElement foot, "map-builder-library-frame");
-            frame.style.left = Length.Percent(50f);
-            frame.style.top = Length.Percent(50f);
-            frame.style.right = StyleKeyword.Auto;
-            frame.style.bottom = StyleKeyword.Auto;
-            frame.style.width = LibraryCardWidth;
-            frame.style.height = LibraryCardHeight;
-            frame.style.marginLeft = -LibraryCardWidth / 2f;
-            frame.style.marginTop = -LibraryCardHeight / 2f;
+            // The console ring (LibraryArtFrame, above), filling the whole overlay. "UI_BG1.png"
+            // is CassetteConsoleChrome's own choice for a plain (not department-centred) title,
+            // matching the Contracts page.
+            LibraryArtFrame ring = new LibraryArtFrame(AssetCatalog.Load<Texture2D>("Assets/UI/Textures/UI_BG1.png"));
+            ring.style.position = Position.Absolute;
+            ring.style.left = 0f;
+            ring.style.top = 0f;
+            ring.style.right = 0f;
+            ring.style.bottom = 0f;
+            _libraryOverlay.Add(ring);
+
+            // The top-centre title slot the ring's art leaves empty (it shows "OVERTIME"/
+            // "CAMPAIGN"/etc. on the real mode-select screen, set by that screen's own code —
+            // not baked into the texture, confirmed live 2026-11-24 the slot renders blank
+            // without this). Positioned to CentreTitleBoxX0/X1/Y0/Y1 (measured above) and
+            // flex-centred inside, the same mechanism CassetteConsoleChrome itself uses for this
+            // slot — a box with its content centred by justify/align, not a manually translated
+            // label — instead of guessing a top offset against the overlay's raw rect.
+            var centreTitleBox = new VisualElement { pickingMode = PickingMode.Ignore };
+            centreTitleBox.style.position = Position.Absolute;
+            centreTitleBox.style.left = Length.Percent(CentreTitleBoxX0 * 100f);
+            centreTitleBox.style.right = Length.Percent((1f - CentreTitleBoxX1) * 100f);
+            centreTitleBox.style.top = Length.Percent(CentreTitleBoxY0 * 100f);
+            centreTitleBox.style.bottom = Length.Percent((1f - CentreTitleBoxY1) * 100f);
+            centreTitleBox.style.flexDirection = FlexDirection.Row;
+            centreTitleBox.style.justifyContent = Justify.Center;
+            centreTitleBox.style.alignItems = Align.Center;
+            _libraryOverlay.Add(centreTitleBox);
+
+            // MetaUi.Text's own tracking (letter-spacing) compensation pads the RIGHT side only
+            // (so a tracked label's visual right edge lines up where normal text would end) —
+            // correct for left-aligned usage, but it leaves tracked text looking off-centre once
+            // the label itself is centred, like this one. MetaUi.Center halves that one-sided
+            // padding onto both sides and switches to MiddleCenter alignment; every other
+            // centred+tracked label in the game's own UI code goes through this same pairing
+            // (ModTreeScreen, SettingsModal, ModalKit, CargoGrid).
+            _libraryCentreTitle = MetaUi.Center(MetaUi.Text(LibraryTabTitle(_libraryTab), MetaUi.Face.DisplayBold, 20f, Accent, 2f));
+            centreTitleBox.Add(_libraryCentreTitle);
+
+            // The game's terminal frame, inset to land inside the ring's own hole (above, same
+            // ArtFrameHoleX0/Y0/X1/Y1 proportions) rather than Frame()'s own near-fullscreen
+            // 22-26px inset, so its glass panel doesn't just cover the ring's art. Its own title
+            // stays a fixed page name (unlike the ring's centre title) since Frame() bakes the
+            // string in once and doesn't hand back a label to update later.
+            VisualElement frame = TerminalUi.Frame(_libraryOverlay, Accent, "MAP BUILDER · LIBRARY", out VisualElement body, out VisualElement foot, "map-builder-library-frame");
+            frame.style.left = Length.Percent(ArtFrameHoleX0 * 100f);
+            frame.style.top = Length.Percent(ArtFrameHoleY0 * 100f);
+            frame.style.right = Length.Percent((1f - ArtFrameHoleX1) * 100f);
+            frame.style.bottom = Length.Percent((1f - ArtFrameHoleY1) * 100f);
             body.style.flexDirection = FlexDirection.Column;
             body.style.paddingLeft = 3f;
             body.style.paddingRight = 3f;
@@ -1126,9 +1273,8 @@ namespace GraveBuilder
             body.style.paddingBottom = 0f;
 
             // The game's own ore-colour stripe (TerminalUi.SpectrumBar: Gold, Blue, Purple, Pink,
-            // green, white) across the top of the card, as a bit of the console look the
-            // Contracts screen's bezel has. Public and self-contained, unlike the bezel itself,
-            // which isn't built by any C# helper we can call.
+            // green, white) across the top of the frame, as a bit of the console look the
+            // Contracts screen's bezel has.
             VisualElement stripe = TerminalUi.SpectrumBar(4f);
             stripe.style.marginBottom = 6f;
             body.Add(stripe);
@@ -1153,8 +1299,8 @@ namespace GraveBuilder
             VisualElement keys = TerminalUi.FootKeys(foot, 18f);
             keys.Add(TerminalUi.FootKey("map-builder-back", "BACK TO MAP", Accent, CloseLibrary, primary: true, 380f));
 
-            // Page stage: the page scroll, then the status line under it (in flow, so it never
-            // covers a row), then the tooltip box on top.
+            // Page stage: the tab row, the current tab's page, then the status line under it
+            // (in flow, so it never covers a row), then the tooltip box on top.
             VisualElement pageStage = new VisualElement { name = "map-builder-library" };
             pageStage.style.flexGrow = 1f;
             pageStage.style.flexDirection = FlexDirection.Column;
@@ -1162,22 +1308,24 @@ namespace GraveBuilder
             body.Add(pageStage);
             _tipStage = pageStage;
 
-            ScrollView page = new ScrollView(ScrollViewMode.Vertical);
-            page.style.flexGrow = 1f;
-            page.style.flexShrink = 1f;
-            page.style.minHeight = 0f;
-            pageStage.Add(page);
-            MetaUi.AccentScroll(page, new Color(1f, 1f, 1f, 0.06f), MetaUi.Fade(Accent, 0.45f), MetaUi.Fade(Accent, 0.75f));
+            _libraryTabRow = Row();
+            _libraryTabRow.style.flexShrink = 0f;
+            _libraryTabRow.style.flexWrap = Wrap.Wrap;
+            _libraryTabRow.style.alignItems = Align.Center;
+            _libraryTabRow.style.paddingLeft = 40f;
+            _libraryTabRow.style.paddingRight = 40f;
+            _libraryTabRow.style.paddingTop = 14f;
+            // The head rule's hairline (SettingsModal.Section) under the keys, so the row reads
+            // as a bar over the page rather than loose buttons.
+            _libraryTabRow.style.borderBottomWidth = 1f;
+            _libraryTabRow.style.borderBottomColor = MetaUi.Fade(Accent, 0.25f);
+            pageStage.Add(_libraryTabRow);
 
-            VisualElement col = new VisualElement { name = "map-builder-library-column" };
-            col.style.alignSelf = Align.Center;
-            col.style.width = Length.Percent(100f);
-            col.style.maxWidth = LibraryMaxWidth;
-            col.style.paddingLeft = 40f;
-            col.style.paddingRight = 40f;
-            col.style.paddingTop = 20f;
-            col.style.paddingBottom = 48f;
-            page.contentContainer.Add(col);
+            VisualElement pages = new VisualElement { name = "map-builder-library-pages" };
+            pages.style.flexGrow = 1f;
+            pages.style.flexShrink = 1f;
+            pages.style.minHeight = 0f;
+            pageStage.Add(pages);
 
             _statusHost = new VisualElement { pickingMode = PickingMode.Ignore };
             _statusHost.style.flexShrink = 0f;
@@ -1189,10 +1337,11 @@ namespace GraveBuilder
 
             BuildTooltip();
 
-            BuildLoadStructureSection(col);
-            BuildLoadImageSection(col);
-            BuildLoadPartSection(col);
-            BuildExportSection(col);
+            BuildLoadStructureSection(LibraryTabPage(pages, LibraryTab.Structures, form: false));
+            BuildLoadPartSection(LibraryTabPage(pages, LibraryTab.Parts, form: false));
+            BuildLoadImageSection(LibraryTabPage(pages, LibraryTab.Image, form: false));
+            BuildExportSection(LibraryTabPage(pages, LibraryTab.Export, form: true));
+            ShowLibraryTab(_libraryTab);
 
             RefreshLoadList();
             RefreshPartsList();
@@ -1201,60 +1350,142 @@ namespace GraveBuilder
             RefreshExportHints();
         }
 
-        // Library section: a clickable head (the game's PanelHead with a ▸/▾ chevron and a
-        // trailing rule) over a body that shows or hides with it, the
-        // floating panels' open/close convention (_panelOpen / TogglePanel) applied to the page.
-        // Hiding the body rather than rebuilding it keeps its fields, hints and lists live, so
-        // nothing a section does depends on it being open. tooltip carries the detail the
-        // visible one-liner leaves out; summary (optional) sits on the head's right.
-        // Returns the body to build the section's content into.
-        private VisualElement LibrarySection(VisualElement content, string title, bool first, string tooltip, out Label summary)
+        private static readonly (LibraryTab tab, string label)[] LibraryTabKeys =
         {
-            VisualElement head = new VisualElement();
-            head.style.flexDirection = FlexDirection.Row;
-            head.style.alignItems = Align.Center;
-            head.style.paddingTop = first ? 2f : 14f;
-            head.style.paddingBottom = 10f;
-            Label headText = MetaUi.PanelHead("", Accent);
-            headText.pickingMode = PickingMode.Ignore;
-            headText.style.marginTop = 0f;
-            headText.style.marginBottom = 0f;
-            head.Add(headText);
-            // The rule runs on from the title to the right edge, as SettingsModal.Section draws
-            // its heads, rather than a border across the top of the block.
-            VisualElement rule = new VisualElement { pickingMode = PickingMode.Ignore };
-            rule.style.flexGrow = 1f;
-            rule.style.height = 1f;
-            rule.style.marginLeft = 18f;
-            rule.style.backgroundColor = MetaUi.Fade(Accent, 0.25f);
-            head.Add(rule);
+            (LibraryTab.Structures, "STRUCTURES"),
+            (LibraryTab.Parts, "PARTS"),
+            (LibraryTab.Image, "IMAGE"),
+            (LibraryTab.Export, "EXPORT")
+        };
+
+        // One tab's page under the tab row, filling the rest of the height. A form page
+        // (IMAGE, EXPORT) scrolls as one column capped at LibraryMaxWidth; a list page
+        // (STRUCTURES, PARTS) doesn't scroll as a whole: its list scrolls on its own
+        // (ListDetailSplit) beside a detail pane that stays put. Returns what to build into.
+        private VisualElement LibraryTabPage(VisualElement host, LibraryTab tab, bool form)
+        {
+            VisualElement page = new VisualElement { name = "map-builder-library-tab" };
+            page.style.flexGrow = 1f;
+            page.style.flexShrink = 1f;
+            page.style.minHeight = 0f;
+            page.style.flexDirection = FlexDirection.Column;
+            host.Add(page);
+            _libraryTabPages[tab] = page;
+            if (!form)
+            {
+                page.style.paddingLeft = 40f;
+                page.style.paddingRight = 40f;
+                page.style.paddingTop = 16f;
+                return page;
+            }
+
+            ScrollView scroll = new ScrollView(ScrollViewMode.Vertical);
+            scroll.style.flexGrow = 1f;
+            scroll.style.flexShrink = 1f;
+            scroll.style.minHeight = 0f;
+            page.Add(scroll);
+            MetaUi.AccentScroll(scroll, new Color(1f, 1f, 1f, 0.06f), MetaUi.Fade(Accent, 0.45f), MetaUi.Fade(Accent, 0.75f));
+
+            VisualElement col = new VisualElement { name = "map-builder-library-column" };
+            col.style.alignSelf = Align.Center;
+            col.style.width = Length.Percent(100f);
+            col.style.maxWidth = LibraryMaxWidth;
+            col.style.paddingLeft = 40f;
+            col.style.paddingRight = 40f;
+            col.style.paddingTop = 16f;
+            col.style.paddingBottom = 48f;
+            scroll.contentContainer.Add(col);
+            return col;
+        }
+
+        // Shows one tab's page and hides the rest: hidden, not rebuilt, so every page's fields,
+        // hints and lists stay live whichever tab is up (the floating panels' TogglePanel
+        // convention).
+        private void ShowLibraryTab(LibraryTab tab)
+        {
+            _libraryTab = tab;
+            HideTooltip(_tooltipOwner);
+            foreach (KeyValuePair<LibraryTab, VisualElement> page in _libraryTabPages)
+            {
+                page.Value.style.display = page.Key == tab ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            if (_libraryCentreTitle != null)
+            {
+                _libraryCentreTitle.text = LibraryTabTitle(tab);
+            }
+            RefreshLibraryTabs();
+        }
+
+        private static string LibraryTabTitle(LibraryTab tab)
+        {
+            foreach ((LibraryTab t, string label) in LibraryTabKeys)
+            {
+                if (t == tab)
+                {
+                    return label;
+                }
+            }
+            return "LIBRARY";
+        }
+
+        // The tab keys in the panel keys' look (RefreshPanelKey): accent for the page showing,
+        // neutral grey for the rest. No pulse: on the painting view that means a tool is
+        // active. MetaUi.Primary bakes its colours in, so a switch rebuilds the row.
+        private void RefreshLibraryTabs()
+        {
+            if (_libraryTabRow == null)
+            {
+                return;
+            }
+            _libraryTabRow.Clear();
+            foreach ((LibraryTab tab, string label) in LibraryTabKeys)
+            {
+                LibraryTab t = tab;
+                VisualElement key = CompactActionBtn(label, () => ShowLibraryTab(t), family: t == _libraryTab ? Accent : Neutral, size: 17f, padX: 36f);
+                key.style.marginRight = 10f;
+                key.style.marginBottom = 12f;
+                _libraryTabRow.Add(key);
+            }
+        }
+
+        // The Contracts-style split both list tabs share: a fixed-width list column on the
+        // left (a dim count, the list's own scroll, then listFoot for whatever goes under the
+        // list) and the detail pane filling the rest on the right. Returns the list scroll.
+        private static ScrollView ListDetailSplit(VisualElement page, out VisualElement listFoot, out VisualElement detailHost, out Label summary)
+        {
+            VisualElement split = Row();
+            split.style.flexGrow = 1f;
+            split.style.flexShrink = 1f;
+            split.style.minHeight = 0f;
+            page.Add(split);
+
+            VisualElement listCol = new VisualElement();
+            listCol.style.width = LibraryListWidth;
+            listCol.style.flexShrink = 0f;
+            listCol.style.marginRight = 28f;
+            split.Add(listCol);
+
             summary = MetaUi.Text("", MetaUi.Face.Body, 15f, DimText, 1f);
             summary.pickingMode = PickingMode.Ignore;
             summary.style.flexShrink = 0f;
-            summary.style.marginLeft = 16f;
-            head.Add(summary);
-            content.Add(AttachTooltip(head, tooltip));
+            summary.style.alignSelf = Align.FlexEnd;
+            // In line with the rows' right edge (ListScroll's content padding).
+            summary.style.marginRight = 14f;
+            listCol.Add(summary);
 
-            VisualElement body = new VisualElement();
-            body.style.paddingBottom = 14f;
-            content.Add(body);
+            ScrollView scroll = ListScroll();
+            listCol.Add(scroll);
 
-            void Apply()
-            {
-                bool open = _librarySectionOpen.TryGetValue(title, out bool o) && o;
-                headText.text = (open ? "▾ " : "▸ ") + title;
-                body.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-            Apply();
-            head.RegisterCallback<ClickEvent>(_ =>
-            {
-                _librarySectionOpen[title] = !(_librarySectionOpen.TryGetValue(title, out bool o) && o);
-                Apply();
-            });
-            // No button under the head to light up, so hovering brightens the title instead.
-            head.RegisterCallback<PointerEnterEvent>(_ => headText.style.color = AccentLt);
-            head.RegisterCallback<PointerLeaveEvent>(_ => headText.style.color = Accent);
-            return body;
+            // Never squeezed: the list scroll gives up the height instead.
+            listFoot = new VisualElement();
+            listFoot.style.flexShrink = 0f;
+            listCol.Add(listFoot);
+
+            detailHost = new VisualElement();
+            detailHost.style.flexGrow = 1f;
+            detailHost.style.minWidth = 0f;
+            split.Add(detailHost);
+            return scroll;
         }
 
         // Settings-row variant of CompactActionBtn: smaller, and spaced to sit several to a
@@ -1280,17 +1511,6 @@ namespace GraveBuilder
             return row;
         }
 
-        // A small MetaUi.Key for inside list rows: Key's 17px text and padding set the row
-        // height, which was most of why the rows read as tall.
-        private static VisualElement RowKey(string text, Action onClick, float width, Color family)
-        {
-            VisualElement k = MetaUi.Primary(text, onClick, enabled: true, 13f, pulse: false, family, 8f);
-            k.style.width = width;
-            k.style.minWidth = width;
-            k.style.flexShrink = 0f;
-            return k;
-        }
-
         // Form fields side by side, each column sharing the width equally. A column can be a
         // bare Field or a Field with its hint under it.
         private static VisualElement FieldRow(params VisualElement[] columns)
@@ -1311,7 +1531,7 @@ namespace GraveBuilder
             return row;
         }
 
-        // Sub-heading inside a library section, as the Contracts list's ListHeader
+        // Sub-heading inside a library tab, as the Contracts list's ListHeader
         // (MetaUi.Eyebrow) in this screen's accent.
         private static Label ListHeader(string text, bool first = false)
         {
@@ -1322,52 +1542,33 @@ namespace GraveBuilder
             return label;
         }
 
-        // An inner list with its own scroll that grows to its rows up to maxHeight.
-        private static ScrollView ListScroll(float maxHeight)
+        // An inner list with its own scroll, filling whatever height its column leaves it.
+        private static ScrollView ListScroll()
         {
             ScrollView scroll = new ScrollView(ScrollViewMode.Vertical);
-            scroll.style.flexGrow = 0f;
-            scroll.style.flexShrink = 0f;
-            scroll.style.maxHeight = maxHeight;
+            scroll.style.flexGrow = 1f;
+            scroll.style.flexShrink = 1f;
+            scroll.style.minHeight = 0f;
             scroll.style.marginBottom = 8f;
             MetaUi.AccentScroll(scroll, new Color(1f, 1f, 1f, 0.06f), MetaUi.Fade(Accent, 0.45f), MetaUi.Fade(Accent, 0.75f));
             scroll.contentContainer.style.paddingRight = 14f;
             return scroll;
         }
 
-        // LOAD STRUCTURE: the merged local-exports / game-catalogue list (was the STRUCTURES
+        // STRUCTURES: the merged local-exports / game-catalogue list (was the STRUCTURES
         // panel), as a Contracts-style split: the list on the left, a detail pane for whichever
         // row is selected on the right (preview, description, LOAD SELECTED / DELETE).
-        private void BuildLoadStructureSection(VisualElement content)
+        private void BuildLoadStructureSection(VisualElement page)
         {
-            VisualElement body = LibrarySection(content, "LOAD STRUCTURE", first: true,
-                null,
-                out _loadSummary);
-            body.Add(BodyText_("Click a structure to preview it here; double-click loads it straight away, replacing the current map (can be undone). Your own exports (orange) also fill in the EXPORT AS STRUCTURE form below; game structures (grey) reset it."));
+            page.Add(BodyText_("Click a structure to preview it on the right; double-click loads it straight away, replacing the current map (can be undone). Your own exports (orange) also fill in the EXPORT tab's form; game structures (grey) reset it."));
 
-            VisualElement split = Row();
-            split.style.alignItems = Align.FlexStart;
-            body.Add(split);
-
-            VisualElement listCol = new VisualElement();
-            listCol.style.width = 460f;
-            listCol.style.flexShrink = 0f;
-            listCol.style.marginRight = 24f;
-            split.Add(listCol);
-
-            ScrollView loadScroll = ListScroll(LoadListMaxHeight);
-            listCol.Add(loadScroll);
+            ScrollView loadScroll = ListDetailSplit(page, out VisualElement listFoot, out _loadDetailHost, out _loadSummary);
             _loadListHost = loadScroll.contentContainer;
-            listCol.Add(CompactActionBtn("REFRESH LIST", () =>
+            listFoot.Add(CompactActionBtn("REFRESH LIST", () =>
             {
                 RefreshLoadList();
                 SetStatus($"Found {_loadEntries.Count} loadable structures.");
             }));
-
-            _loadDetailHost = new VisualElement();
-            _loadDetailHost.style.flexGrow = 1f;
-            _loadDetailHost.style.minWidth = 0f;
-            split.Add(_loadDetailHost);
             RefreshLoadDetail();
         }
 
@@ -1385,7 +1586,7 @@ namespace GraveBuilder
             if (_loadSelected < 0 || _loadSelected >= _loadEntries.Count)
             {
                 VisualElement empty = MetaUi.Panel(Neutral, 15f, dim: true, 12f);
-                empty.style.minHeight = 260f;
+                empty.style.flexGrow = 1f;
                 empty.style.justifyContent = Justify.Center;
                 empty.style.alignItems = Align.Center;
                 empty.Add(BodyText_("Select a structure from the list to preview it here."));
@@ -1395,13 +1596,18 @@ namespace GraveBuilder
 
             LoadEntry entry = _loadEntries[_loadSelected];
             Color family = entry.Local ? Accent : Neutral;
+            // Fills the whole detail column height (not just its own content's) and centres
+            // that content in it, rather than a small card pinned to the top with empty space
+            // under it — confirmed live 2026-11-24 that was reading as wasted space.
             VisualElement panel = MetaUi.Panel(family, 15f, dim: true, 14f);
+            panel.style.flexGrow = 1f;
+            panel.style.justifyContent = Justify.Center;
             _loadDetailHost.Add(panel);
 
             VisualElement previewRow = Row();
             previewRow.style.justifyContent = Justify.Center;
             previewRow.style.marginBottom = 14f;
-            VisualElement preview = EntryPreview(entry, 220f, out int cellCount);
+            VisualElement preview = EntryPreview(entry, 380f, out int cellCount);
             previewRow.Add(preview);
             panel.Add(previewRow);
 
@@ -1414,8 +1620,8 @@ namespace GraveBuilder
             panel.Add(sub);
 
             string desc = entry.Local
-                ? "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT AS STRUCTURE form below, ready to re-export."
-                : "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT AS STRUCTURE form.";
+                ? "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT tab's form, ready to re-export."
+                : "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT tab's form.";
             Label descLabel = MetaUi.Text(desc, MetaUi.Face.Body, 15f, BodyText, 0.5f, wrap: true);
             descLabel.style.marginBottom = 18f;
             panel.Add(descLabel);
@@ -1434,33 +1640,49 @@ namespace GraveBuilder
             panel.Add(actions);
         }
 
-        // LOAD IMAGE: paint a PNG/JPEG onto the map in the five substrate colours. A typed path
-        // like every other input here; the builder has no OS file picker anywhere.
-        private void BuildLoadImageSection(VisualElement content)
+        // IMAGE: paint a PNG/JPEG onto the map in the five substrate colours. A typed path
+        // like every other input here; the builder has no OS file picker anywhere. A
+        // Contracts-style split, like STRUCTURES/PARTS: the form on the left (same column
+        // width as their lists, LibraryListWidth), a live preview of the chosen file filling
+        // the right — added 2026-11-24, the form alone left most of the tab empty.
+        private void BuildLoadImageSection(VisualElement page)
         {
-            VisualElement body = LibrarySection(content, "LOAD IMAGE", first: false,
-                null,
-                out _);
+            VisualElement split = Row();
+            split.style.flexGrow = 1f;
+            split.style.flexShrink = 1f;
+            split.style.minHeight = 0f;
+            page.Add(split);
+
+            VisualElement body = new VisualElement { name = "map-builder-image-form" };
+            body.style.width = LibraryListWidth;
+            body.style.flexShrink = 0f;
+            body.style.marginRight = 28f;
+            split.Add(body);
+
             body.Add(BodyText_("Turns a PNG or JPEG into a map in the substrate colours: one cell per sampled pixel, transparent pixels become gaps. PALETTE matches each pixel to the nearest substrate colour; LUMINANCE picks it by brightness alone. Loading replaces the map and can be undone, so try the options and compare."));
 
-            VisualElement pathRow = Row();
-            pathRow.style.alignItems = Align.FlexStart;
-            _imagePathField = Field("Image path", _imagePathText, v => _imagePathText = v);
-            _imagePathField.style.flexGrow = 1f;
-            _imagePathField.style.maxWidth = 1000f;
-            _imagePathField.style.marginRight = 16f;
-            AttachTooltip(_imagePathField, "The full path to a .png or .jpg file, e.g. C:\\Pictures\\logo.png. Surrounding quotes (from Copy as path) are fine.");
-            pathRow.Add(_imagePathField);
-            pathRow.Add(AttachTooltip(ChipBtn("BROWSE\u2026", BrowseImage), "Opens a file picker to choose a PNG or JPEG."));
-            body.Add(pathRow);
+            VisualElement imagePathWrap = Field("Image path", _imagePathText, v =>
+            {
+                _imagePathText = v;
+                RefreshImagePreview();
+            }, out _imagePathField);
+            AttachTooltip(imagePathWrap, "The full path to a .png or .jpg file, e.g. C:\\Pictures\\logo.png. Surrounding quotes (from Copy as path) are fine.");
+            body.Add(imagePathWrap);
+            body.Add(AttachTooltip(ChipBtn("BROWSE\u2026", BrowseImage), "Opens a file picker to choose a PNG or JPEG."));
 
-            _imageSizeField = Field("Max grid size", _imageSizeText, v => _imageSizeText = v);
-            AttachTooltip(_imageSizeField, $"How many cells the image's longer side spans, {MinRadius} to {MaxImageSize}. The other side follows the image's own shape. Bigger keeps more detail but makes a larger map.");
-            _imageAlphaField = Field("Alpha threshold", _imageAlphaText, v => _imageAlphaText = v);
-            AttachTooltip(_imageAlphaField, "0 to 255. Pixels less opaque than this become gaps. 0 keeps every pixel, even fully transparent ones; raise it to trim a soft-edged cutout.");
-            VisualElement numbers = FieldRow(_imageSizeField, _imageAlphaField);
-            numbers.style.maxWidth = 1000f;
-            body.Add(numbers);
+            VisualElement imageSizeWrap = Field("Max grid size", _imageSizeText, v =>
+            {
+                _imageSizeText = v;
+                RefreshImagePreview();
+            }, out _imageSizeField);
+            AttachTooltip(imageSizeWrap, $"How many cells the image's longer side spans, {MinRadius} to {MaxImageSize}. The other side follows the image's own shape. Bigger keeps more detail but makes a larger map.");
+            VisualElement imageAlphaWrap = Field("Alpha threshold", _imageAlphaText, v =>
+            {
+                _imageAlphaText = v;
+                RefreshImagePreview();
+            }, out _imageAlphaField);
+            AttachTooltip(imageAlphaWrap, "0 to 255. Pixels less opaque than this become gaps. 0 keeps every pixel, even fully transparent ones; raise it to trim a soft-edged cutout.");
+            body.Add(FieldRow(imageSizeWrap, imageAlphaWrap));
 
             _imageOptionsHost = new VisualElement();
             body.Add(_imageOptionsHost);
@@ -1468,6 +1690,166 @@ namespace GraveBuilder
 
             body.Add(AttachTooltip(CompactActionBtn("LOAD IMAGE", LoadImage),
                 "Replaces the map with the image and takes you back to it. Can be undone."));
+
+            _imagePreviewHost = new VisualElement { name = "map-builder-image-preview" };
+            _imagePreviewHost.style.flexGrow = 1f;
+            _imagePreviewHost.style.minWidth = 0f;
+            split.Add(_imagePreviewHost);
+            RefreshImagePreview();
+        }
+
+        // The IMAGE tab's live preview: not the source file's own pixels, but the actual
+        // converted result — the same ImageToMap() + substrate-colour rendering LoadImage()
+        // and the structure thumbnails use — so changing PALETTE/LUMINANCE/DITHER/INVERT, the
+        // grid size or the alpha threshold shows what you'd actually get, not just the source
+        // picture. Added 2026-11-24: a raw-image preview didn't tell you anything about the
+        // options you're actually choosing between.
+        // _imagePreviewTex is a loose Texture2D (not pooled, unlike _localThumbs below) —
+        // always destroyed before being replaced or when the library closes (CloseLibrary),
+        // since nothing else ever cleans it up.
+        private void RefreshImagePreview()
+        {
+            if (_imagePreviewHost == null)
+            {
+                return;
+            }
+            _imagePreviewHost.Clear();
+            if (_imagePreviewTex != null)
+            {
+                UnityEngine.Object.Destroy(_imagePreviewTex);
+                _imagePreviewTex = null;
+            }
+
+            VisualElement panel = MetaUi.Panel(Neutral, 15f, dim: true, 14f);
+            panel.style.flexGrow = 1f;
+            panel.style.justifyContent = Justify.Center;
+            panel.style.alignItems = Align.Center;
+            _imagePreviewHost.Add(panel);
+
+            // Explorer's Copy as path wraps the path in quotes, as LoadImage() trims it.
+            string path = (_imagePathText ?? "").Trim().Trim('"').Trim();
+            if (path.Length == 0)
+            {
+                panel.Add(BodyText_("Pick a PNG or JPEG to preview the converted map here."));
+                return;
+            }
+            if (!File.Exists(path))
+            {
+                panel.Add(BodyText_($"No file at '{path}'."));
+                return;
+            }
+            // Lenient: a half-typed field (e.g. "" or "1" while backspacing "140") just skips
+            // the preview rather than flashing a validation error on every keystroke — LOAD
+            // IMAGE's own ReadClampedInt is the one that actually enforces this.
+            if (!int.TryParse((_imageSizeText ?? "").Trim(), out int size) || !int.TryParse((_imageAlphaText ?? "").Trim(), out int alphaThreshold))
+            {
+                panel.Add(BodyText_("Enter a whole number for Max grid size and Alpha threshold to preview the converted map."));
+                return;
+            }
+            size = Mathf.Clamp(size, MinRadius, MaxImageSize);
+            alphaThreshold = Mathf.Clamp(alphaThreshold, 0, 255);
+
+            Texture2D srcTex = null;
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                srcTex = new Texture2D(2, 2);
+                if (!ImageConversion.LoadImage(srcTex, bytes))
+                {
+                    panel.Add(BodyText_($"'{Path.GetFileName(path)}' couldn't be read as an image. PNG and JPEG are supported."));
+                    return;
+                }
+                SandboxMap previewMap = ImageToMap(srcTex, size, alphaThreshold, _imageLuminance, _imageInvert, _imageDither);
+                if (previewMap == null)
+                {
+                    panel.Add(BodyText_($"'{Path.GetFileName(path)}' produced no cells: every pixel is below the alpha threshold ({alphaThreshold}). Lower it to keep more."));
+                    return;
+                }
+                Texture2D tex = RenderMapPreview(previewMap);
+                if (tex == null)
+                {
+                    panel.Add(BodyText_("Couldn't render a preview."));
+                    return;
+                }
+                _imagePreviewTex = tex;
+                VisualElement image = new VisualElement { pickingMode = PickingMode.Ignore };
+                image.style.width = Length.Percent(88f);
+                image.style.height = Length.Percent(80f);
+                image.style.backgroundImage = new StyleBackground(tex);
+                image.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Contain);
+                image.style.backgroundRepeat = new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
+                image.style.backgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Center);
+                image.style.backgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Center);
+                panel.Add(image);
+                Label caption = MetaUi.Text($"{previewMap.cells.Count} cells \u00b7 {Path.GetFileName(path)}", MetaUi.Face.Body, 14f, DimText, 1f);
+                caption.style.marginTop = 14f;
+                panel.Add(caption);
+            }
+            catch (Exception e)
+            {
+                panel.Add(BodyText_($"Couldn't read '{Path.GetFileName(path)}': {e.Message}"));
+            }
+            finally
+            {
+                if (srcTex != null)
+                {
+                    UnityEngine.Object.Destroy(srcTex);
+                }
+            }
+        }
+
+        // RenderSilhouette's exact rendering (axial-to-pixel math, 2x2 blocks, y-flip to match
+        // the game's own orientation), but reading an in-memory SandboxMap.cells (the IMAGE
+        // tab's live preview) instead of a parsed MegastructureData (the load-list thumbnails).
+        private static Texture2D RenderMapPreview(SandboxMap map)
+        {
+            if (map == null || map.cells.Count == 0)
+            {
+                return null;
+            }
+            float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
+            foreach (Vector2Int axial in map.cells.Keys)
+            {
+                float x = Mathf.Sqrt(3f) * (axial.x + axial.y / 2f);
+                float y = 1.5f * axial.y;
+                xMin = Mathf.Min(xMin, x);
+                xMax = Mathf.Max(xMax, x);
+                yMin = Mathf.Min(yMin, y);
+                yMax = Mathf.Max(yMax, y);
+            }
+            float s = 2f / Mathf.Sqrt(3f);
+            int w = Mathf.CeilToInt((xMax - xMin) * s) + 4;
+            int h = Mathf.CeilToInt((yMax - yMin) * s) + 4;
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, mipChain: false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color32[] px = new Color32[w * h];
+            foreach (KeyValuePair<Vector2Int, SandboxMap.Cell> kvp in map.cells)
+            {
+                Vector2Int axial = kvp.Key;
+                Color32 c = StructureSilhouette.LayerColour(kvp.Value.layer);
+                float x = Mathf.Sqrt(3f) * (axial.x + axial.y / 2f);
+                int bx = Mathf.RoundToInt((x - xMin) * s) + 1;
+                int by = h - 2 - Mathf.RoundToInt((1.5f * axial.y - yMin) * s);
+                for (int dy = 0; dy < 2; dy++)
+                {
+                    for (int dx = 0; dx < 2; dx++)
+                    {
+                        int tx = bx + dx;
+                        int ty = by - dy;
+                        if (tx >= 0 && tx < w && ty >= 0 && ty < h)
+                        {
+                            px[ty * w + tx] = c;
+                        }
+                    }
+                }
+            }
+            tex.SetPixels32(px);
+            tex.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+            return tex;
         }
 
         // The three settings as the game's own two-way switches (SettingsModal.Switch / OnOff:
@@ -1488,9 +1870,9 @@ namespace GraveBuilder
             row.style.marginBottom = 6f;
             row.Add(SegmentSwitch("COLOURS", "PALETTE", "LUMINANCE", _imageLuminance, SetImageLuminance, enabled: true, 320f,
                 "PALETTE: each pixel becomes the substrate colour nearest its own (blue, pink, gold, purple); dark or greyish pixels become grey. LUMINANCE: hue is ignored; the image's brightness is stretched to its full range and split into five steps, darkest = layer 5 (Purple), lightest = layer 1 (Grey)."));
-            row.Add(SegmentSwitch("DITHER", "OFF", "ON", _imageDither, v => { _imageDither = v; RefreshImageOptions(); }, enabled: !_imageLuminance, 200f,
+            row.Add(SegmentSwitch("DITHER", "OFF", "ON", _imageDither, v => { _imageDither = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: !_imageLuminance, 200f,
                 "PALETTE only. When on, each pixel's colour error is spread to its neighbours, so gradients and photos read as a mix of colours instead of flat bands. Off matches each pixel on its own."));
-            row.Add(SegmentSwitch("INVERT", "OFF", "ON", _imageInvert, v => { _imageInvert = v; RefreshImageOptions(); }, enabled: _imageLuminance, 200f,
+            row.Add(SegmentSwitch("INVERT", "OFF", "ON", _imageInvert, v => { _imageInvert = v; RefreshImageOptions(); RefreshImagePreview(); }, enabled: _imageLuminance, 200f,
                 "LUMINANCE only. Flips the brightness steps, so the lightest pixels get the highest layer instead of the darkest."));
             _imageOptionsHost.Add(row);
         }
@@ -1577,6 +1959,7 @@ namespace GraveBuilder
         {
             _imageLuminance = luminance;
             RefreshImageOptions();
+            RefreshImagePreview();
         }
 
         // Native Win32 "Open" dialog (see Win32OpenFileDialog) instead of a typed path — this
@@ -1592,85 +1975,73 @@ namespace GraveBuilder
             }
             _imagePathText = picked;
             _imagePathField?.SetValueWithoutNotify(picked);
+            RefreshImagePreview();
         }
 
-        // LOAD PART: save the clipboard as a named part, and the saved-parts list (was the
-        // PARTS panel).
-        private void BuildLoadPartSection(VisualElement content)
+        // PARTS: the saved-parts list (was the PARTS panel) as STRUCTURES' split (list left,
+        // detail pane for the selected part right), and saving the clipboard as a new part
+        // under the list.
+        private void BuildLoadPartSection(VisualElement page)
         {
-            VisualElement body = LibrarySection(content, "LOAD PART", first: false,
-                null,
-                out _partsSummary);
-            body.Add(BodyText_("Saved clipboards (made with COPY/CUT in TOOLS), kept between sessions. Loading one puts it in the clipboard and takes you back to the map, ready to PASTE — or save the current clipboard as a new part below."));
+            page.Add(BodyText_("Saved clipboards (made with COPY/CUT in TOOLS), kept between sessions. Click a part to see it on the right; double-click puts it in the clipboard and takes you back to the map, ready to PASTE. Save the current clipboard as a new part under the list."));
 
-            body.Add(ListHeader("SAVED PARTS", first: true));
-            ScrollView partsScroll = ListScroll(PartsListMaxHeight);
-            body.Add(partsScroll);
+            ScrollView partsScroll = ListDetailSplit(page, out VisualElement listFoot, out _partDetailHost, out _partsSummary);
             _partsListHost = partsScroll.contentContainer;
-            body.Add(CompactActionBtn("REFRESH LIST", () =>
+            listFoot.Add(CompactActionBtn("REFRESH LIST", () =>
             {
                 RefreshPartsList();
                 SetStatus($"Found {_partEntries.Count} saved part{(_partEntries.Count == 1 ? "" : "s")}{(_partsSkipped > 0 ? $" ({_partsSkipped} unreadable file{(_partsSkipped == 1 ? "" : "s")} skipped, see the log)" : "")}.");
             }));
 
-            body.Add(ListHeader("SAVE THE CLIPBOARD AS A PART"));
-            // Name and its save button on one line.
-            VisualElement saveRow = Row();
-            saveRow.style.alignItems = Align.FlexStart;
-            _partNameField = Field("Part name", _partNameText, v => _partNameText = v);
-            _partNameField.style.flexGrow = 1f;
-            _partNameField.style.maxWidth = 1000f;
-            _partNameField.style.marginRight = 16f;
-            AttachTooltip(_partNameField, "Also becomes the file name (lowercased, other characters turned into _). Saving under a name that already exists overwrites that part.");
-            saveRow.Add(_partNameField);
+            listFoot.Add(ListHeader("SAVE THE CLIPBOARD AS A PART"));
+            // Name over its save button: the list column is too narrow for both on one line.
+            VisualElement partNameWrap = Field("Part name", _partNameText, v => _partNameText = v, out _partNameField);
+            AttachTooltip(partNameWrap, "Also becomes the file name (lowercased, other characters turned into _). Saving under a name that already exists overwrites that part.");
+            listFoot.Add(partNameWrap);
             _partSaveHost = new VisualElement();
-            _partSaveHost.style.flexShrink = 0f;
-            saveRow.Add(_partSaveHost);
-            body.Add(saveRow);
+            listFoot.Add(_partSaveHost);
+            RefreshPartDetail();
         }
 
-        // EXPORT AS STRUCTURE: contract details (with inline validation) + the band editor
-        // (was the EXPORT panel).
-        private void BuildExportSection(VisualElement content)
+        // EXPORT: contract details (with inline validation) + the band editor (was the EXPORT
+        // panel).
+        private void BuildExportSection(VisualElement body)
         {
-            VisualElement body = LibrarySection(content, "EXPORT AS STRUCTURE", first: false,
-                null,
-                out _);
             body.Add(BodyText_("Saves this map as a contract in content/structures/, live in the game's Contracts list straight away (no RELOAD MODS click needed) — unlike the quick, private test on the MAP panel's SAVE AS SANDBOX OVERRIDE, this publishes a real, selectable contract."));
 
             body.Add(ListHeader("CONTRACT DETAILS", first: true));
             // ID and name side by side, each with its hint under it; money on its own line.
-            _idField = Field("Contract ID", _idText, v =>
+            VisualElement idWrap = Field("Contract ID", _idText, v =>
             {
                 _idText = v;
                 RefreshExportHints();
-            });
-            AttachTooltip(_idField,"The contract's internal name, and its file name. Lowercase letters, digits and _ only. Exporting with one of your own export's IDs overwrites it.");
+            }, out _idField);
+            AttachTooltip(idWrap, "The contract's internal name, and its file name. Lowercase letters, digits and _ only. Exporting with one of your own export's IDs overwrites it.");
             _idHint = FieldHint();
             VisualElement idCol = new VisualElement();
-            idCol.Add(_idField);
+            idCol.Add(idWrap);
             idCol.Add(_idHint);
 
-            _nameField = Field("Display name", _nameText, v =>
+            VisualElement nameWrap = Field("Display name", _nameText, v =>
             {
                 _nameText = v;
                 RefreshExportHints();
-            });
-            AttachTooltip(_nameField,"The name shown in the game's Contracts list. Leave it blank to use the ID.");
+            }, out _nameField);
+            AttachTooltip(nameWrap, "The name shown in the game's Contracts list. Leave it blank to use the ID.");
             _nameHint = FieldHint();
             VisualElement nameCol = new VisualElement();
-            nameCol.Add(_nameField);
+            nameCol.Add(nameWrap);
             nameCol.Add(_nameHint);
             body.Add(FieldRow(idCol, nameCol));
 
-            _moneyField = Field("Starting money", _moneyText, v =>
+            VisualElement moneyWrap = Field("Starting money", _moneyText, v =>
             {
                 _moneyText = v;
                 RefreshExportHints();
-            });
-            _moneyField.style.maxWidth = 560f;
-            AttachTooltip(_moneyField, "How much money the player starts this contract with. A whole number, 0 or more.");
-            body.Add(_moneyField);
+            }, out _moneyField);
+            moneyWrap.style.maxWidth = 560f;
+            AttachTooltip(moneyWrap, "How much money the player starts this contract with. A whole number, 0 or more.");
+            body.Add(moneyWrap);
             _moneyHint = FieldHint();
             body.Add(_moneyHint);
 
@@ -1769,30 +2140,17 @@ namespace GraveBuilder
 
         // ---- floating panels ---------------------------------------------------------
 
-        // Simple mode: only what a first-time user needs — the 5 substrate colours + erase,
-        // the brush size slider (the same control Advanced uses), undo/redo, reset view, and
-        // the sandbox-override actions.
+        // The builder's painting panels. Key order = bar order, MAP last (right end). Stats
+        // live in the foot band (BuildStatsReadout); loading structures and parts and
+        // exporting live in the library view (BuildLibraryView).
         // Widths fit each panel's widest row (PairRows of two full-size keys need ~600).
-        private List<PanelDef> SimplePanels()
+        private List<PanelDef> Panels()
         {
             return new List<PanelDef>
             {
-                new PanelDef { Id = PanelPalette, Label = "PALETTE", Width = 480f, Build = BuildSimplePalette },
-                new PanelDef { Id = PanelTools, Label = "TOOLS", Width = 480f, Build = BuildSimpleTools },
-                new PanelDef { Id = PanelMap, Label = "MAP", Width = 640f, AnchorRight = true, Build = BuildSimpleMap },
-            };
-        }
-
-        // Advanced mode: the full builder's painting panels. Key order = bar order, MAP last
-        // (right end). Stats live in the foot band (BuildStatsReadout); loading structures and
-        // parts and exporting live in the library view (BuildLibraryView).
-        private List<PanelDef> AdvancedPanels()
-        {
-            return new List<PanelDef>
-            {
-                new PanelDef { Id = PanelPalette, Label = "PALETTE", Width = 480f, Build = BuildAdvancedPalette },
-                new PanelDef { Id = PanelTools, Label = "TOOLS", Width = 620f, Build = BuildAdvancedTools },
-                new PanelDef { Id = PanelMap, Label = "MAP", Width = 640f, AnchorRight = true, Build = BuildAdvancedMap },
+                new PanelDef { Id = PanelPalette, Label = "PALETTE", Width = 480f, Build = BuildPalette },
+                new PanelDef { Id = PanelTools, Label = "TOOLS", Width = 620f, Build = BuildTools },
+                new PanelDef { Id = PanelMap, Label = "MAP", Width = 640f, AnchorRight = true, Build = BuildMap },
             };
         }
 
@@ -2054,35 +2412,8 @@ namespace GraveBuilder
             }
         }
 
-        // Simple PALETTE: the 5 substrate colours + erase.
-        private void BuildSimplePalette(VisualElement content)
-        {
-            content.Add(Head("PALETTE", first: true));
-            VisualElement swatches = Row();
-            swatches.style.flexWrap = Wrap.Wrap;
-            for (int layer = 1; layer <= 5; layer++)
-            {
-                int l = layer;
-                Color c = StructureSilhouette.LayerColour(l);
-                swatches.Add(ToolHolder(SubstrateKey(l), MetaUi.Key(LayerColourName(l), () => SelectTool(Substrate, l), 120f, c), c, LayerCaption(l)));
-            }
-            swatches.Add(ToolHolder(Erase, MetaUi.Key("ERASE", () => SelectTool(Erase, _layer), 120f, MetaUi.Crimson), MetaUi.Crimson));
-            content.Add(swatches);
-            content.Add(BodyText_("Left-drag paints. Right-drag erases."));
-        }
-
-        // Simple TOOLS: brush size (shared control, see BuildBrushControl), undo/redo, reset view.
-        private void BuildSimpleTools(VisualElement content)
-        {
-            content.Add(Head("TOOLS", first: true));
-            BuildBrushControl(content);
-            _historyRow = Row();
-            content.Add(_historyRow);
-            content.Add(ResetViewBtn());
-        }
-
-        // RESET VIEW (both modes), with the zoom/pan controls as its hover text since those
-        // have no button of their own.
+        // RESET VIEW, with the zoom/pan controls as its hover text since those have no button
+        // of their own.
         private VisualElement ResetViewBtn()
         {
             return AttachTooltip(ActionBtn("RESET VIEW", () =>
@@ -2092,25 +2423,8 @@ namespace GraveBuilder
             }), "Back to zoom 1x, centred. Mouse wheel zooms towards the cursor; middle-drag pans.");
         }
 
-        // Simple MAP: new map + the sandbox-override actions.
-        private void BuildSimpleMap(VisualElement content)
-        {
-            content.Add(Head("MAP", first: true));
-            content.Add(ActionBtn("NEW MAP", () => CreateMap(filled: true, DefaultRadius)));
-            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Switch to Advanced mode (MODE, bottom bar) to publish a map properly instead."));
-            content.Add(AttachTooltip(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride),
-                "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list."));
-            content.Add(PairRow(
-                AttachTooltip(ActionBtn("LOAD OVERRIDE", LoadOverride),
-                    "Loads the saved override back into this editor, replacing the current map (can be undone)."),
-                AttachTooltip(ActionBtn("REMOVE OVERRIDE", RemoveOverride),
-                    "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged.")));
-        }
-
-        // Advanced mode: the full builder's painting panels (PALETTE, TOOLS, MAP).
-
-        // Advanced PALETTE: substrate layers + both special-tile groups + erase.
-        private void BuildAdvancedPalette(VisualElement content)
+        // PALETTE: substrate layers + both special-tile groups + erase.
+        private void BuildPalette(VisualElement content)
         {
             // Palette: substrate layers. Each swatch is a game Key recoloured to the layer's
             // own StructureSilhouette.LayerColour (the same source HexCanvas draws with), with
@@ -2170,9 +2484,9 @@ namespace GraveBuilder
             content.Add(BodyText_("Left-drag paints the selected tool. Right-drag erases. Special tiles keep the cell's existing layer colour."));
         }
 
-        // Advanced TOOLS: brush size (shared control, see BuildBrushControl), fill/mirror,
-        // undo/redo, reset view.
-        private void BuildAdvancedTools(VisualElement content)
+        // TOOLS: brush size (shared control, see BuildBrushControl), fill/mirror, undo/redo,
+        // reset view, selection & clipboard.
+        private void BuildTools(VisualElement content)
         {
             content.Add(Head("TOOLS", first: true));
             BuildBrushControl(content);
@@ -2184,8 +2498,8 @@ namespace GraveBuilder
             content.Add(_historyRow);
             content.Add(ResetViewBtn());
 
-            // Selection & clipboard (Advanced only: Simple never builds these rows). How each
-            // button works is its hover text (RefreshToggles / RefreshClipboardButtons).
+            // Selection & clipboard. How each button works is its hover text (RefreshToggles /
+            // RefreshClipboardButtons).
             content.Add(SubHead("SELECTION & CLIPBOARD"));
             content.Add(BodyText_("Select cells, then copy/cut/paste them elsewhere on the map."));
             _selectRow = Row();
@@ -2196,8 +2510,8 @@ namespace GraveBuilder
             content.Add(_clipRow);
         }
 
-        // Advanced MAP: radius, new filled/empty, grow, sandbox-override actions.
-        private void BuildAdvancedMap(VisualElement content)
+        // MAP: radius, new filled/empty, grow, sandbox-override actions.
+        private void BuildMap(VisualElement content)
         {
             content.Add(Head("MAP", first: true));
             BuildRadiusControl(content);
@@ -2205,7 +2519,7 @@ namespace GraveBuilder
                 ActionBtn("NEW (FILLED)", () => NewMap(filled: true)),
                 ActionBtn("NEW (EMPTY)", () => NewMap(filled: false))));
             content.Add(ActionBtn("GROW TO RADIUS", GrowToRadius));
-            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use EXPORT AS STRUCTURE (STRUCTURES & PARTS, bottom bar) to publish a map properly instead."));
+            content.Add(BodyText_("Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use the EXPORT tab (STRUCTURES & PARTS, bottom bar) to publish a map properly instead."));
             content.Add(AttachTooltip(ActionBtn("SAVE AS SANDBOX OVERRIDE", SaveOverride),
                 "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list."));
             content.Add(PairRow(
@@ -2215,95 +2529,23 @@ namespace GraveBuilder
                     "Deletes the saved override. Your next sortie goes back to the game's normal structures; this editor's map is unchanged.")));
         }
 
-        // ---- Simple/Advanced mode -----------------------------------------------------
+        private static bool FillActive => _fillMode;
 
-        // Instant rebuild, no wipe: unlike opening the builder, nothing is revealed/hidden
-        // behind this one (same screen, just a different panel
-        // set) — a transition here was confirmed to just add delay for no visible benefit.
-        private void ToggleModeNow()
-        {
-            CommitAction();
-            _advancedMode = !_advancedMode;
-            SaveAdvancedPref(_advancedMode);
-            // Paste placement has no controls in Simple; drop it rather than resume a stamp
-            // later by surprise. SELECT (like fill/mirror) just pauses.
-            _pasteMode = false;
-            if (!_advancedMode && _tool != Substrate && _tool != Erase)
-            {
-                // Simple mode has no special-tile palette, so don't leave one silently selected.
-                _tool = Substrate;
-            }
-            _lastStatus = _advancedMode
-                ? "Advanced mode: every tool, stats, structure loading and export."
-                : (_fillMode || _mirror || _selectMode || _lineMode || _circleMode || _autoFillLoops)
-                    ? "Simple mode: the essentials only. Fill mode, mirror, line, circle and select are paused until you switch back to Advanced."
-                    : "Simple mode: the essentials only. Switch to Advanced for every tool.";
-            _lastStatusError = false;
-            Plugin.Log.LogInfo("MapBuilder: " + _lastStatus);
-            if (_doc != null && _doc.rootVisualElement != null)
-            {
-                Build(_doc.rootVisualElement);
-            }
-        }
+        private static bool MirrorActive => _mirror;
 
-        private static string PrefsPath()
-        {
-            return Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), PrefsFileName);
-        }
+        private static bool SelectActive => _selectMode;
 
-        // Missing, unreadable or malformed file -> Simple mode (false); never throws.
-        private static bool LoadAdvancedPref()
-        {
-            try
-            {
-                string path = PrefsPath();
-                if (!File.Exists(path))
-                {
-                    return false;
-                }
-                JObject o = JObject.Parse(File.ReadAllText(path));
-                JToken t = o[PrefsAdvancedKey];
-                return t != null && t.Type == JTokenType.Boolean && (bool)t;
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning($"MapBuilder: could not read {PrefsFileName}, using Simple mode: {e.Message}");
-                return false;
-            }
-        }
+        private static bool PasteModeActive => _pasteMode && _clipboard.Count > 0;
 
-        private static void SaveAdvancedPref(bool advanced)
-        {
-            try
-            {
-                JObject o = new JObject { [PrefsAdvancedKey] = advanced };
-                File.WriteAllText(PrefsPath(), o.ToString(Formatting.Indented));
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogWarning($"MapBuilder: could not save {PrefsFileName}: {e.Message}");
-            }
-        }
+        private static bool LineActive => _lineMode;
 
-        // Fill mode and mirror have no controls in Simple mode, so they only take effect in
-        // Advanced (their state is kept and resumes on switching back).
-        private static bool FillActive => _fillMode && _advancedMode;
+        private static bool CircleActive => _circleMode;
 
-        private static bool MirrorActive => _mirror && _advancedMode;
+        private static bool AutoFillLoopsActive => _autoFillLoops;
 
-        private static bool SelectActive => _selectMode && _advancedMode;
-
-        private static bool PasteModeActive => _pasteMode && _advancedMode && _clipboard.Count > 0;
-
-        private static bool LineActive => _lineMode && _advancedMode;
-
-        private static bool CircleActive => _circleMode && _advancedMode;
-
-        private static bool AutoFillLoopsActive => _autoFillLoops && _advancedMode;
-
-        // Brush size: one control, built by this one method in both Simple and Advanced TOOLS.
+        // Brush size: one control, built by this one method in TOOLS.
         // A SliderInt (0..MaxBrush) and a small number box side by side, both over the same
-        // static _brush/_brushText state, so the value survives a mode toggle or reopen and the
+        // static _brush/_brushText state, so the value survives a reopen and the
         // two widgets never disagree. Dragging the slider writes both and refreshes the box;
         // typing in the box keeps the raw text in _brushText (half-typed values survive a
         // rebuild), updates _brush only when it parses, moves the slider, and on focus-out
@@ -2311,9 +2553,15 @@ namespace GraveBuilder
         //
         // The game's UI never uses a slider, so its panel theme may not style one: the
         // tracker/dragger get inline styles here rather than relying on the theme.
+        // _brush itself stays the 0-based radius every painting method (DiscFootprint etc.)
+        // already expects (0 = just the cell under the cursor) — only the slider/box/caption
+        // shown to the player are offset by +1, since a displayed "brush size 0" reads as
+        // "paints nothing" even though it actually paints one cell.
+        private const int BrushDisplayOffset = 1;
+
         private void BuildBrushControl(VisualElement content)
         {
-            Label caption = MetaUi.Text($"Brush size (0-{MaxBrush}): cells around the cursor, 0 = one cell", MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
+            Label caption = MetaUi.Text($"Brush size (1-{MaxBrush + BrushDisplayOffset}): cells around the cursor, 1 = one cell", MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
             caption.style.marginBottom = 4f;
             content.Add(caption);
 
@@ -2322,8 +2570,8 @@ namespace GraveBuilder
             row.style.marginBottom = 10f;
             content.Add(row);
 
-            _brushSlider = new SliderInt(0, MaxBrush);
-            _brushSlider.SetValueWithoutNotify(_brush);
+            _brushSlider = new SliderInt(BrushDisplayOffset, MaxBrush + BrushDisplayOffset);
+            _brushSlider.SetValueWithoutNotify(_brush + BrushDisplayOffset);
             _brushSlider.style.flexGrow = 1f;
             _brushSlider.style.marginLeft = 0f;
             _brushSlider.style.marginRight = 12f;
@@ -2331,8 +2579,8 @@ namespace GraveBuilder
             StyleSlider(_brushSlider);
             _brushSlider.RegisterValueChangedCallback(e =>
             {
-                _brush = Mathf.Clamp(e.newValue, 0, MaxBrush);
-                _brushText = _brush.ToString();
+                _brush = Mathf.Clamp(e.newValue - BrushDisplayOffset, 0, MaxBrush);
+                _brushText = (_brush + BrushDisplayOffset).ToString();
                 _brushField?.SetValueWithoutNotify(_brushText);
                 _canvas?.Repaint();
             });
@@ -2350,12 +2598,12 @@ namespace GraveBuilder
                 _brushText = e.newValue;
                 if (int.TryParse((e.newValue ?? "").Trim(), out int n))
                 {
-                    _brush = Mathf.Clamp(n, 0, MaxBrush);
-                    _brushSlider?.SetValueWithoutNotify(_brush);
+                    _brush = Mathf.Clamp(n - BrushDisplayOffset, 0, MaxBrush);
+                    _brushSlider?.SetValueWithoutNotify(_brush + BrushDisplayOffset);
                     _canvas?.Repaint();
                 }
             });
-            _brushField.RegisterCallback<FocusOutEvent>(_ => NormaliseIntField(_brushField, ref _brushText, _brush));
+            _brushField.RegisterCallback<FocusOutEvent>(_ => NormaliseIntField(_brushField, ref _brushText, _brush + BrushDisplayOffset));
             row.Add(_brushField);
         }
 
@@ -2637,27 +2885,35 @@ namespace GraveBuilder
         }
 
 
-        // Stock TextField styled the way the game styles its one runtime text input
-        // (DroneBayScreen.RenameField): toolkit font, tinted input fill, family-coloured edge.
-        private static TextField Field(string label, string value, Action<string> onChange)
+        // A caption line over a bare TextField (CompactField's shape), styled the way the game
+        // styles its one runtime text input (DroneBayScreen.RenameField): toolkit font, tinted
+        // input fill, family-coloured edge. Not TextField's own built-in label (new
+        // TextField(label)) — that one doesn't pick up StyleInput's explicit box height below,
+        // confirmed live 2026-11-24: its box rendered far shorter than CompactField's same box,
+        // despite the same height style being set on both. field is the input itself, for
+        // value access, tooltips and extra styling; the returned wrapper is what actually goes
+        // in the layout.
+        private static VisualElement Field(string label, string value, Action<string> onChange, out TextField field)
         {
-            TextField tf = new TextField(label);
+            VisualElement wrap = new VisualElement();
+            wrap.style.marginBottom = 10f;
+            Label cap = MetaUi.Text(label, MetaUi.Face.Body, 18f, BodyText, 0f);
+            cap.style.marginBottom = 4f;
+            wrap.Add(cap);
+
+            TextField tf = new TextField();
             tf.SetValueWithoutNotify(value ?? "");
             StyleInput(tf, 20f);
             tf.style.marginLeft = 0f;
             tf.style.marginRight = 0f;
-            tf.style.marginBottom = 10f;
-            if (tf.labelElement != null)
-            {
-                MetaUi.Style(tf.labelElement, MetaUi.Face.Body, 18f, BodyText);
-                tf.labelElement.style.minWidth = 230f;
-                tf.labelElement.style.width = 230f;
-            }
+            tf.style.marginBottom = 0f;
+            wrap.Add(tf);
+            field = tf;
             if (onChange != null)
             {
                 tf.RegisterValueChangedCallback(e => onChange(e.newValue));
             }
-            return tf;
+            return wrap;
         }
 
         private static void StyleInput(TextField tf, float size)
@@ -3068,7 +3324,7 @@ namespace GraveBuilder
                     ActionBtn(pasteLabel, TogglePaste, enabled: placing || _clipboard.Count > 0, family: placing ? Accent : (Color?)null, pulse: placing),
                     "Each left click on the map stamps the clipboard centred on the cursor (empty cells erase) and stays ready for another. Right-click or CANCEL PASTE stops. Shortcut: Ctrl+V."));
             }
-            // LOAD PART's save button follows the clipboard too (every clipboard change ends here).
+            // The PARTS tab's save button follows the clipboard too (every clipboard change ends here).
             RefreshPartSaveButton();
         }
 
@@ -3227,8 +3483,7 @@ namespace GraveBuilder
 
         public bool SelectMode => SelectActive;
 
-        // Shown in Advanced only (Simple has no selection tools, so nothing to show).
-        public IEnumerable<Vector2Int> SelectedCells => _advancedMode ? _selection : Enumerable.Empty<Vector2Int>();
+        public IEnumerable<Vector2Int> SelectedCells => _selection;
 
         public bool PasteActive => PasteModeActive;
 
@@ -3237,10 +3492,10 @@ namespace GraveBuilder
         // Brush-footprint preview: on whenever a click would run a brush-radius action, i.e.
         // a brush stroke (any palette tool) or a SELECT drag, mirroring the canvas's dispatch
         // precedence (paste > SELECT > fill > brush): never during paste placement (it has its
-        // own ghost), never in fill mode unless SELECT overrides it. Advanced only. LINE uses
-        // the brush, so its hover shows the footprint (a drag swaps it for the line ghost);
-        // CIRCLE ignores brush size, so it shows none.
-        public bool BrushPreviewActive => _advancedMode && !PasteModeActive && !CircleActive && (SelectActive || LineActive || !FillActive);
+        // own ghost), never in fill mode unless SELECT overrides it. LINE uses the brush, so
+        // its hover shows the footprint (a drag swaps it for the line ghost); CIRCLE ignores
+        // brush size, so it shows none.
+        public bool BrushPreviewActive => !PasteModeActive && !CircleActive && (SelectActive || LineActive || !FillActive);
 
         // Exactly the cells a click at (q, r) would touch: the same hex-radius loop as
         // StrokePaint/SelectPaint (DiscFootprint at _brush), plus the (-q, -r) mirrors when
@@ -3836,8 +4091,7 @@ namespace GraveBuilder
             CreateMap(filled, radius);
         }
 
-        // Shared by Advanced's NEW (FILLED)/NEW (EMPTY) (radius from the field) and Simple's
-        // NEW MAP (filled, DefaultRadius).
+        // NEW (FILLED)/NEW (EMPTY), radius from the field.
         private void CreateMap(bool filled, int radius)
         {
             SandboxMap map;
@@ -4407,7 +4661,7 @@ namespace GraveBuilder
             _loadListHost.Add(ListHeader("YOUR EXPORTS", first: true));
             if (!anyLocal)
             {
-                _loadListHost.Add(BodyText_("Nothing exported yet. Use EXPORT AS STRUCTURE below."));
+                _loadListHost.Add(BodyText_("Nothing exported yet. Use the EXPORT tab."));
             }
             bool gameHeader = false;
             for (int i = 0; i < _loadEntries.Count; i++)
@@ -4880,7 +5134,7 @@ namespace GraveBuilder
                 RefreshLoadList();
                 string files = removed.Count > 0 ? string.Join(" + ", removed) : "no files were left to remove";
                 SetStatus(inGame
-                    ? $"Deleted structure '{entry.Label}' ({files}). It's still in the game's Contracts list this session: click RELOAD MODS on the Contracts page to remove it there too. The map here is unchanged."
+                    ? $"Deleted structure '{entry.Label}' ({files}). It's still in the game's Contracts list this session: click RELOAD MODS on the main menu's Mods page to remove it there too. The map here is unchanged."
                     : $"Deleted structure '{entry.Label}' ({files}). The map here is unchanged.");
             }
             catch (Exception e)
@@ -5318,7 +5572,7 @@ namespace GraveBuilder
                 catch (Exception re)
                 {
                     Plugin.Log.LogWarning($"MapBuilder: reload after export failed: {re}");
-                    reloadNote = $"Reloading the Contracts list failed ({re.Message}); click RELOAD MODS on the Contracts page to try again.";
+                    reloadNote = $"Reloading the Contracts list failed ({re.Message}); click RELOAD MODS on the main menu's Mods page to try again.";
                 }
                 // After the reload, so the list reflects the re-injected catalogue.
                 RefreshLoadList();
@@ -5453,7 +5707,6 @@ namespace GraveBuilder
             }
             _partSaveHost.Clear();
             bool any = _clipboard.Count > 0;
-            // Compact: it sits on the part-name line (BuildLoadPartSection), not under it.
             _partSaveHost.Add(CompactActionBtn(any ? $"SAVE CLIPBOARD AS PART ({_clipboard.Count} CELLS)" : "SAVE CLIPBOARD AS PART", SavePart, enabled: any));
         }
 
@@ -5529,11 +5782,14 @@ namespace GraveBuilder
             {
                 Plugin.Log.LogWarning($"MapBuilder: could not list saved parts: {e.Message}");
             }
+            // A rescan can reorder or drop entries, so the selection (an index) is cleared, as
+            // RefreshLoadList does.
+            _partSelected = -1;
             RebuildPartsList();
+            RefreshPartDetail();
         }
 
-        // One slab row per part, in the same Contracts-list style as the load list: name over
-        // its cell count and file, then LOAD INTO CLIPBOARD and the delete key on the right.
+        // The parts list as the load list (RebuildLoadList): PartRow slabs under one eyebrow.
         private void RebuildPartsList()
         {
             if (_partsListHost == null)
@@ -5541,53 +5797,167 @@ namespace GraveBuilder
                 return;
             }
             _partsListHost.Clear();
+            _partRowPaint.Clear();
+            _partHover = -1;
             if (_partsSummary != null)
             {
                 _partsSummary.text = $"{_partEntries.Count} SAVED PART{(_partEntries.Count == 1 ? "" : "S")}";
             }
+            _partsListHost.Add(ListHeader("SAVED PARTS", first: true));
             if (_partEntries.Count == 0)
             {
                 _partsListHost.Add(BodyText_("No saved parts yet. Select some cells on the map, COPY them, then save them below."));
                 return;
             }
-            foreach (PartEntry entry in _partEntries)
+            for (int i = 0; i < _partEntries.Count; i++)
             {
-                PartEntry e = entry;
-                VisualElement row = new VisualElement { name = "map-builder-part-row" };
-                row.style.flexDirection = FlexDirection.Row;
-                row.style.alignItems = Align.Center;
-                row.style.paddingLeft = 18f;
-                row.style.paddingRight = 8f;
-                row.style.paddingTop = 5f;
-                row.style.paddingBottom = 5f;
-                row.style.marginBottom = 8f;
-                SlabFrame frame = MetaUi.Slab(row, Accent, dim: false, 12f);
-                MetaUi.PaintSlab(frame, Accent, dim: false, 0.45f);
-                row.RegisterCallback<PointerEnterEvent>(_ => MetaUi.PaintSlab(frame, Accent, dim: false, 0.85f));
-                row.RegisterCallback<PointerLeaveEvent>(_ => MetaUi.PaintSlab(frame, Accent, dim: false, 0.45f));
-
-                VisualElement text = new VisualElement { pickingMode = PickingMode.Ignore };
-                text.style.flexGrow = 1f;
-                text.style.flexShrink = 1f;
-                text.style.overflow = Overflow.Hidden;
-                Label nameLabel = MetaUi.Text(e.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 17f, MetaUi.TextTone(Accent), 1.5f);
-                nameLabel.pickingMode = PickingMode.Ignore;
-                text.Add(nameLabel);
-                Label info = MetaUi.Text($"{e.CellCount} cells{(e.EmptyCount > 0 ? $" ({e.EmptyCount} empty, which erase when pasted)" : "")} · {Path.GetFileName(e.Path)}", MetaUi.Face.Body, 13f, DimText, 0.5f);
-                info.pickingMode = PickingMode.Ignore;
-                info.style.marginTop = 1f;
-                text.Add(info);
-                row.Add(text);
-
-                VisualElement load = RowKey("LOAD INTO CLIPBOARD", () => LoadPart(e), 270f, Accent);
-                load.style.marginLeft = 16f;
-                row.Add(AttachTooltip(load, "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it."));
-                VisualElement del = RowKey("×", () => DeletePart(e), 44f, MetaUi.Crimson);
-                del.style.marginLeft = 10f;
-                row.Add(AttachTooltip(del, "Delete this part's file. The clipboard is unchanged."));
-                MetaUi.Lift(row, slide: true);
-                _partsListHost.Add(row);
+                _partsListHost.Add(PartRow(i, _partEntries[i]));
             }
+            PaintPartRows();
+        }
+
+        // One parts-list row, as LoadRow minus the thumbnail (a part is bare clipboard cells,
+        // nothing StructureSilhouette can draw): the name, the cell count on the right. Click
+        // selects, double-click loads it into the clipboard.
+        private VisualElement PartRow(int index, PartEntry entry)
+        {
+            Color family = Accent;
+            VisualElement row = new VisualElement { name = "map-builder-part-row" };
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.Center;
+            row.style.paddingLeft = 18f;
+            row.style.paddingRight = 18f;
+            row.style.paddingTop = 9f;
+            row.style.paddingBottom = 9f;
+            row.style.marginBottom = 8f;
+            SlabFrame frame = MetaUi.Slab(row, family, dim: false, 12f);
+
+            Label name = MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 17f, MetaUi.TextTone(family), 1.5f);
+            name.pickingMode = PickingMode.Ignore;
+            name.style.flexGrow = 1f;
+            name.style.flexShrink = 1f;
+            // Ellipsis rather than a hard clip, as LoadRow's name.
+            name.style.minWidth = 0f;
+            name.style.whiteSpace = WhiteSpace.NoWrap;
+            name.style.overflow = Overflow.Hidden;
+            name.style.textOverflow = TextOverflow.Ellipsis;
+            row.Add(name);
+
+            Label count = MetaUi.Text($"{entry.CellCount} CELLS", MetaUi.Face.Display, 17f, MetaUi.Green, 1.5f);
+            count.pickingMode = PickingMode.Ignore;
+            count.style.flexShrink = 0f;
+            count.style.marginLeft = 16f;
+            row.Add(count);
+
+            row.RegisterCallback<ClickEvent>(e =>
+            {
+                SelectPartEntry(index);
+                if (e.clickCount >= 2)
+                {
+                    LoadSelectedPart();
+                }
+            });
+            row.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                _partHover = index;
+                PaintPartRows();
+            });
+            row.RegisterCallback<PointerLeaveEvent>(_ =>
+            {
+                if (_partHover == index)
+                {
+                    _partHover = -1;
+                }
+                PaintPartRows();
+            });
+            MetaUi.Lift(row, slide: true);
+            _partRowPaint.Add((frame, name, family));
+            return AttachTooltip(row, entry.Name);
+        }
+
+        // PaintLoadRows' look for the parts list.
+        private void PaintPartRows()
+        {
+            for (int i = 0; i < _partRowPaint.Count; i++)
+            {
+                (SlabFrame frame, Label name, Color family) = _partRowPaint[i];
+                bool selected = i == _partSelected;
+                bool hover = i == _partHover;
+                MetaUi.PaintSlab(frame, family, dim: false, selected ? 1f : (hover ? 0.85f : 0.45f));
+                frame.Stroke = selected ? 3f : 2f;
+                name.style.color = selected ? Color.white : MetaUi.TextTone(family);
+            }
+        }
+
+        private void SelectPartEntry(int index)
+        {
+            _partSelected = index;
+            PaintPartRows();
+            RefreshPartDetail();
+            SetStatus($"Selected part '{_partEntries[index].Name}'.");
+        }
+
+        private void LoadSelectedPart()
+        {
+            if (_partSelected < 0 || _partSelected >= _partEntries.Count)
+            {
+                SetStatus("Select a part in the list first.", error: true);
+                return;
+            }
+            LoadPart(_partEntries[_partSelected]);
+        }
+
+        // The PARTS tab's detail pane, as RefreshLoadDetail without the preview: the name, its
+        // cell count and file, what loading it does, LOAD INTO CLIPBOARD and DELETE.
+        private void RefreshPartDetail()
+        {
+            if (_partDetailHost == null)
+            {
+                return;
+            }
+            _partDetailHost.Clear();
+            if (_partSelected < 0 || _partSelected >= _partEntries.Count)
+            {
+                VisualElement empty = MetaUi.Panel(Neutral, 15f, dim: true, 12f);
+                empty.style.flexGrow = 1f;
+                empty.style.justifyContent = Justify.Center;
+                empty.style.alignItems = Align.Center;
+                empty.Add(BodyText_("Select a part from the list to see it here."));
+                _partDetailHost.Add(empty);
+                return;
+            }
+
+            PartEntry entry = _partEntries[_partSelected];
+            // Fills the whole detail column height and centres this (short, no-preview)
+            // content in it, as RefreshLoadDetail does, rather than a small text block
+            // pinned to the top with empty space under it.
+            VisualElement panel = MetaUi.Panel(Accent, 15f, dim: true, 14f);
+            panel.style.flexGrow = 1f;
+            panel.style.justifyContent = Justify.Center;
+            _partDetailHost.Add(panel);
+
+            panel.Add(MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 28f, MetaUi.TextTone(Accent), 2f));
+
+            string cells = $"SAVED PART · {entry.CellCount} cells{(entry.EmptyCount > 0 ? $" ({entry.EmptyCount} empty, which erase when pasted)" : "")} · {Path.GetFileName(entry.Path)}";
+            Label sub = MetaUi.Text(cells, MetaUi.Face.Body, 16f, DimText, 1.5f, wrap: true);
+            sub.style.marginTop = 6f;
+            sub.style.marginBottom = 20f;
+            panel.Add(sub);
+
+            Label descLabel = MetaUi.Text("A saved clipboard. Loading it replaces the clipboard and takes you back to the map in paste mode: left-click stamps it. Deleting it removes its file; the clipboard is unchanged either way.", MetaUi.Face.Body, 17f, BodyText, 0.5f, wrap: true);
+            descLabel.style.maxWidth = 640f;
+            descLabel.style.marginBottom = 24f;
+            panel.Add(descLabel);
+
+            VisualElement actions = Row();
+            actions.style.flexWrap = Wrap.Wrap;
+            actions.style.alignItems = Align.Center;
+            VisualElement loadBtn = CompactActionBtn("LOAD INTO CLIPBOARD", () => LoadPart(entry), family: Accent, size: 17f, padX: 36f);
+            loadBtn.style.marginRight = 10f;
+            actions.Add(AttachTooltip(loadBtn, "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it."));
+            actions.Add(AttachTooltip(CompactActionBtn("DELETE", () => DeletePart(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                "Delete this part's file. The clipboard is unchanged."));
+            panel.Add(actions);
         }
 
         // Replaces the clipboard with the part, ready for PASTE (same end state as COPY). Re-reads
