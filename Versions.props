@@ -21,8 +21,8 @@
   <PropertyGroup>
     <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveFramework'">1.1.0</PluginVersion>
     <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveFrameworkExamples'">1.0.0</PluginVersion>
-    <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveBuilder'">1.1.0</PluginVersion>
-    <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveOverhaul'">1.0.0</PluginVersion>
+    <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveBuilder'">1.2.0</PluginVersion>
+    <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveOverhaul'">1.1.0</PluginVersion>
     <PluginVersion Condition="'$(MSBuildProjectName)' == 'GraveyardOrbitExplorer'">0.1.0</PluginVersion>
   </PropertyGroup>
 </Project>

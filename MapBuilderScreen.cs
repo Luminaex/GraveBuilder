@@ -90,21 +90,32 @@ namespace GraveBuilder
         private const string Substrate = "substrate";
         private const string Erase = "erase";
 
-        // Every special marker tile SandboxMap.AltToTile knows, in its declaration order: the
-        // first BehaviorTileCount are "behavior" tiles (paint a hidden enemy encounter) — their
-        // labels match gamedata_tiles.json's own "label" field (Title Case, no underscores),
-        // the game's real name for them, confirmed 2026-11-22. The rest are "material" tiles —
-        // further confirmed 2026-11-22 to be the game's "shard" currency (the handbook's
-        // "Shards"/"Mods" entries): ColourTokens.TokenKeyOfTile maps special_1/2/3/meta_1 to
-        // tok_gold/pink/blue/purple, and ColourTokens.Family names those Laser/Breacher/Dynamo/
-        // Pulse — so "Laser Shard" etc. below is the real player-facing name, not the raw
-        // gamedata "Special 1"/"Meta 1" label (which is accurate but meaningless to a player).
-        private const int BehaviorTileCount = 4;
+        // The special marker tiles are NOT hardcoded: ResolveSpecialTiles reads the live
+        // SandboxMap.AltToTile every time it's asked (each PALETTE build, each parts detail
+        // pane), so a tile another mod adds to that dictionary (e.g. 16="ambusher") gets a
+        // palette button, a label, a marker colour and a count like the vanilla ones. Two groups:
+        // "material" tiles (MaterialTiles below), confirmed 2026-11-22 to be the game's "shard"
+        // currency (the handbook's "Shards"/"Mods" entries): ColourTokens.TokenKeyOfTile maps
+        // special_1/2/3/meta_1 to tok_gold/pink/blue/purple, and ColourTokens.Family names those
+        // Laser/Breacher/Dynamo/Pulse — so "Laser Shard" etc. below is the real player-facing
+        // name, not the raw gamedata "Special 1"/"Meta 1" label. Every other key is treated as a
+        // "behavior" tile (paints a hidden enemy encounter) — the four vanilla ones' labels match
+        // gamedata_tiles.json's own "label" field (Title Case, no underscores), confirmed
+        // 2026-11-22; an unknown key falls back to FallbackTileLabel.
+        private static readonly string[] MaterialTiles = { "special_1", "special_2", "special_3", "meta_1" };
 
-        private static readonly string[] SpecialTiles =
+        // One resolved special tile: its alt id (from AltToTile), key, display label and group.
+        private struct SpecialTileEntry
         {
-            "explosive", "lightning", "void", "swarm", "special_1", "special_2", "special_3", "meta_1"
-        };
+            public int Alt;
+            public string Key;
+            public string Label;
+            public bool Material;
+        }
+
+        // The last resolved list as logged (alt=key(label), ...), so the PALETTE logs only when
+        // the live AltToTile actually resolves to something different.
+        private static string _lastSpecialTileLog;
 
         // special_1/2/3 and meta_1 are the game's own "shard" currency used to research Mods
         // (see the handbook's "Shards"/"Mods" entries) — ColourTokens.TokenKeyOfTile maps
@@ -123,6 +134,117 @@ namespace GraveBuilder
             ["special_3"] = Loc.T("gravebuilder.tiles.dynamo_shard", "Dynamo Shard"),
             ["meta_1"] = Loc.T("gravebuilder.tiles.pulse_shard", "Pulse Shard"),
         };
+
+        // Alt -> key straight from the live SandboxMap.AltToTile, ascending alt, minus anything
+        // that isn't a paintable special tile (null/empty, substrate, erase).
+        private static List<KeyValuePair<int, string>> LiveAltToTile()
+        {
+            return SandboxMap.AltToTile
+                .Where(kv => !string.IsNullOrEmpty(kv.Value) && kv.Value != Substrate && kv.Value != Erase)
+                .OrderBy(kv => kv.Key)
+                .ToList();
+        }
+
+        // Key -> alt, the reverse of the live AltToTile. Duplicate values (two alts naming one
+        // key) are guarded: the lowest alt wins, rather than ToDictionary throwing.
+        private static Dictionary<string, int> LiveTileToAlt()
+        {
+            return LiveAltToTile()
+                .GroupBy(kv => kv.Value)
+                .ToDictionary(g => g.Key, g => g.First().Key);
+        }
+
+        // Every special tile the live AltToTile knows, one entry per key, in display order:
+        // the four vanilla behaviour tiles (by alt), then any unknown/mod-added keys (by alt),
+        // then the material (shard) tiles in MaterialTiles' order. Never cached: AltToTile is
+        // a public mutable dictionary, so a mod may add to it after we first looked.
+        private static List<SpecialTileEntry> ResolveSpecialTiles()
+        {
+            Dictionary<string, int> tileToAlt = LiveTileToAlt();
+            List<SpecialTileEntry> known = new List<SpecialTileEntry>();
+            List<SpecialTileEntry> unknown = new List<SpecialTileEntry>();
+            List<SpecialTileEntry> materials = new List<SpecialTileEntry>();
+            foreach (KeyValuePair<string, int> kv in tileToAlt.OrderBy(kv => kv.Value))
+            {
+                int materialIndex = Array.IndexOf(MaterialTiles, kv.Key);
+                SpecialTileEntry entry = new SpecialTileEntry
+                {
+                    Alt = kv.Value,
+                    Key = kv.Key,
+                    Label = TileLabel(kv.Key),
+                    Material = materialIndex >= 0
+                };
+                if (entry.Material)
+                {
+                    materials.Add(entry);
+                }
+                else if (SpecialTileLabel.ContainsKey(kv.Key))
+                {
+                    known.Add(entry);
+                }
+                else
+                {
+                    unknown.Add(entry);
+                }
+            }
+            materials.Sort((a, b) => Array.IndexOf(MaterialTiles, a.Key).CompareTo(Array.IndexOf(MaterialTiles, b.Key)));
+            return known.Concat(unknown).Concat(materials).ToList();
+        }
+
+        // Log the resolved list once per change (not per PALETTE rebuild, which happens on every
+        // panel toggle).
+        private static void LogSpecialTiles(List<SpecialTileEntry> tiles)
+        {
+            string line = string.Join(", ", tiles.Select(t => $"{t.Alt}={t.Key}({t.Label})"));
+            if (line == _lastSpecialTileLog)
+            {
+                return;
+            }
+            _lastSpecialTileLog = line;
+            Plugin.Log.LogInfo("[GraveBuilder] palette special tiles: " + line);
+        }
+
+        // The game's SandboxMap.TileToAlt (used by ToStructureJson on export) is built ONCE from
+        // AltToTile in SandboxMap's static constructor, so a key another mod adds to AltToTile
+        // afterwards is missing from it and would export as plain substrate. Fill in only the
+        // missing keys from the live AltToTile (never overwrite an existing entry) right before
+        // an export, so a painted mod tile's alt round-trips (FromMegastructure on load reads
+        // the live AltToTile already).
+        private static void SyncGameTileToAlt()
+        {
+            foreach (KeyValuePair<string, int> kv in LiveTileToAlt())
+            {
+                if (!SandboxMap.TileToAlt.ContainsKey(kv.Key))
+                {
+                    SandboxMap.TileToAlt[kv.Key] = kv.Value;
+                }
+            }
+        }
+
+        // Display name for a tile key with no SpecialTileLabel entry (a mod-added tile):
+        // Title Case with underscores as spaces, "test_custom_tile" -> "Test Custom Tile".
+        private static string FallbackTileLabel(string key)
+        {
+            string label = string.Join(" ", key.Split(new[] { '_' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpperInvariant(w[0]) + w.Substring(1)));
+            return label.Length > 0 ? label : key;
+        }
+
+        // Fallback marker colour for a tile with no entry in MarkerColour's table: there is no
+        // official marker colour for a mod-added tile, so derive a stable, distinct hue from a
+        // deterministic FNV-1a hash of the key (not string.GetHashCode, which isn't guaranteed
+        // stable across runtimes/runs), at a fixed bright saturation/value so it reads on every
+        // layer colour.
+        private static Color HashedTileColour(string key)
+        {
+            uint hash = 2166136261u;
+            foreach (char ch in key)
+            {
+                hash ^= ch;
+                hash *= 16777619u;
+            }
+            return Color.HSVToRGB((hash % 360u) / 360f, 0.7f, 0.95f);
+        }
 
         private static readonly Regex IdPattern = new Regex("^[a-z0-9_]+$");
 
@@ -289,6 +411,12 @@ namespace GraveBuilder
             public string Path;
             public int CellCount;
             public int EmptyCount;
+            // Layer (1-5) -> non-empty cell count, and special-tile key (any non-substrate tile) -> count,
+            // for the detail pane's STRUCTURE DATA/COMPOSITION NOTES panels. Computed once in
+            // RefreshPartsList from the same `cells` list already read for CellCount/EmptyCount,
+            // not re-parsed per selection.
+            public Dictionary<int, int> LayerCounts;
+            public Dictionary<string, int> TileCounts;
         }
 
         // ---- static state (survives close/reopen) ----------------------------------------
@@ -300,6 +428,9 @@ namespace GraveBuilder
         private static int _brush;
         private static bool _fillMode;
         private static bool _mirror;
+        // MIRROR (L-R): a second, independent axial reflection (see "mirror" below). Can be on
+        // together with the point mirror above — PaintWithMirror then paints all 4 positions.
+        private static bool _axisMirror;
         // LINE / CIRCLE drag tools (see "line & circle tools" below). Exclusive with each
         // other and with fill mode and SELECT.
         private static bool _lineMode;
@@ -315,6 +446,10 @@ namespace GraveBuilder
         private static bool _autoFillLoops;
         private static readonly HashSet<Vector2Int> _selection = new HashSet<Vector2Int>();
         private static readonly List<ClipCell> _clipboard = new List<ClipCell>();
+        // Bumped every time _clipboard is replaced (CopySelection, LoadPart), so the clipboard
+        // thumbnail (ClipboardThumb) knows when its cached texture is stale without re-rendering
+        // on every RefreshClipboardButtons/RefreshPartSaveButton call.
+        private static int _clipboardVersion;
 
         // Which floating panels are open; kept across close/reopen. PALETTE starts open so
         // there's something to paint with straight away.
@@ -432,6 +567,10 @@ namespace GraveBuilder
         private readonly List<(SlabFrame frame, Label name, Color family)> _loadRowPaint = new List<(SlabFrame, Label, Color)>();
         private int _loadSelected = -1;
         private int _loadHover = -1;
+        // RENAME on the selected (local-only) structure: while true, RefreshLoadDetail shows a
+        // NEW NAME field + SAVE NAME/CANCEL instead of the title + LOAD/DELETE row.
+        private bool _structRenaming;
+        private string _structRenameText;
 
         private readonly List<PartEntry> _partEntries = new List<PartEntry>();
         private int _partsSkipped;
@@ -439,6 +578,9 @@ namespace GraveBuilder
         private readonly List<(SlabFrame frame, Label name, Color family)> _partRowPaint = new List<(SlabFrame, Label, Color)>();
         private int _partSelected = -1;
         private int _partHover = -1;
+        // As _structRenaming/_structRenameText, for the selected part.
+        private bool _partRenaming;
+        private string _partRenameText;
 
         // Hover tooltip (see "hover tooltips" below): one shared box on the stage, rebuilt
         // with it, and the element whose text it is showing right now.
@@ -1586,48 +1728,200 @@ namespace GraveBuilder
 
             LoadEntry entry = _loadEntries[_loadSelected];
             Color family = entry.Local ? Accent : Neutral;
-            // Fills the whole detail column height (not just its own content's) and centres
-            // that content in it, rather than a small card pinned to the top with empty space
-            // under it — confirmed live 2026-11-24 that was reading as wasted space.
+            // Fills the whole detail column height.
             VisualElement panel = MetaUi.Panel(family, 15f, dim: true, 14f);
             panel.style.flexGrow = 1f;
-            panel.style.justifyContent = Justify.Center;
             _loadDetailHost.Add(panel);
 
-            VisualElement previewRow = Row();
-            previewRow.style.justifyContent = Justify.Center;
-            previewRow.style.marginBottom = 14f;
-            VisualElement preview = EntryPreview(entry, 380f, out int cellCount);
-            previewRow.Add(preview);
-            panel.Add(previewRow);
+            // The Contracts screen's own shape (ModeSelectController.BuildLadder): a centred
+            // hero column (image/title/desc/actions) with a separate, fixed-width stats column
+            // to its right holding CONTRACT DATA/PROTOCOL as their own bordered cards — not one
+            // long left-aligned stack. See DetailHero/DetailStatsColumn below.
+            VisualElement split = Row();
+            split.style.flexGrow = 1f;
+            split.style.alignItems = Align.Stretch;
+            panel.Add(split);
 
-            panel.Add(MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 22f, MetaUi.TextTone(family), 2f));
+            VisualElement hero = DetailHero(split);
+
+            VisualElement preview = EntryPreview(entry, 320f, out int cellCount);
+            hero.Add(preview);
+
+            if (_structRenaming && entry.Local)
+            {
+                VisualElement renameWrap = new VisualElement();
+                renameWrap.style.width = 320f;
+                renameWrap.style.marginTop = 24f;
+                renameWrap.Add(Field(Loc.T("gravebuilder.structures.rename_label", "NEW NAME"), _structRenameText ?? entry.Label, v => _structRenameText = v, out TextField renameField));
+                hero.Add(renameWrap);
+
+                VisualElement renameActions = Row();
+                renameActions.style.justifyContent = Justify.Center;
+                renameActions.style.marginTop = 4f;
+                renameActions.style.marginBottom = 16f;
+                VisualElement saveNameBtn = CompactActionBtn(Loc.T("gravebuilder.structures.rename_save", "SAVE NAME"), () => RenameLocalStructure(entry, _structRenameText), family: Accent, size: 17f, padX: 30f);
+                saveNameBtn.style.marginRight = 10f;
+                renameActions.Add(saveNameBtn);
+                renameActions.Add(CompactActionBtn(Loc.T("gravebuilder.structures.rename_cancel", "CANCEL"), () => { _structRenaming = false; RefreshLoadDetail(); }, size: 17f, padX: 30f));
+                hero.Add(renameActions);
+            }
+            else
+            {
+                Label title = MetaUi.Text(entry.Label.ToUpperInvariant(), MetaUi.Face.DisplayBold, 32f, MetaUi.TextTone(family), 2f);
+                title.style.marginTop = 24f;
+                MetaUi.Center(title);
+                hero.Add(title);
+            }
 
             string tag = entry.Local ? Loc.T("gravebuilder.structures.detail_tag_yours", "YOUR EXPORT") : Loc.T("gravebuilder.structures.detail_tag_game", "GAME STRUCTURE");
             Label sub = MetaUi.Text(cellCount > 0 ? Loc.F("gravebuilder.structures.detail_tag_cells", "{tag} · {n} cells", ("tag", tag), ("n", cellCount)) : tag, MetaUi.Face.Body, 14f, DimText, 1.5f);
-            sub.style.marginTop = 4f;
-            sub.style.marginBottom = 14f;
-            panel.Add(sub);
+            sub.style.marginTop = 6f;
+            sub.style.marginBottom = 16f;
+            MetaUi.Center(sub);
+            hero.Add(sub);
 
             string desc = entry.Local
                 ? Loc.T("gravebuilder.structures.detail_desc_local", "Your own export. Loading it replaces the map on screen (undoable) and fills in the EXPORT tab's form, ready to re-export.")
                 : Loc.T("gravebuilder.structures.detail_desc_game", "One of the game's own structures. Loading it replaces the map on screen (undoable) and resets the EXPORT tab's form.");
             Label descLabel = MetaUi.Text(desc, MetaUi.Face.Body, 15f, BodyText, 0.5f, wrap: true);
-            descLabel.style.marginBottom = 18f;
-            panel.Add(descLabel);
+            descLabel.style.maxWidth = 480f;
+            descLabel.style.marginBottom = 22f;
+            MetaUi.Center(descLabel);
+            hero.Add(descLabel);
 
-            VisualElement actions = Row();
-            actions.style.flexWrap = Wrap.Wrap;
-            actions.style.alignItems = Align.Center;
-            VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.structures.load_selected", "LOAD SELECTED"), LoadSelected, family: Accent, size: 17f, padX: 36f);
-            loadBtn.style.marginRight = 10f;
-            actions.Add(loadBtn);
+            if (!_structRenaming)
+            {
+                VisualElement actions = Row();
+                actions.style.flexWrap = Wrap.Wrap;
+                actions.style.justifyContent = Justify.Center;
+                VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.structures.load_selected", "LOAD SELECTED"), LoadSelected, family: Accent, size: 17f, padX: 36f);
+                loadBtn.style.marginRight = 10f;
+                actions.Add(loadBtn);
+                if (entry.Local)
+                {
+                    VisualElement renameBtn = CompactActionBtn(Loc.T("gravebuilder.structures.rename_button", "RENAME"), () => { _structRenaming = true; _structRenameText = entry.Label; RefreshLoadDetail(); }, size: 17f, padX: 36f);
+                    renameBtn.style.marginRight = 10f;
+                    actions.Add(renameBtn);
+                    actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.structures.delete_button", "DELETE"), () => DeleteLocalStructure(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                        Loc.T("gravebuilder.structures.delete_tooltip", "Delete this export's files (asks first).")));
+                }
+                hero.Add(actions);
+            }
+
+            VisualElement stats = DetailStatsColumn(split);
+            AddStructureStatsPanel(stats, entry, cellCount);
+        }
+
+        // The hero (left/centre) column of a Contracts-style detail split: grown to fill the
+        // remaining width, its own content centred both ways — ModeSelectController's
+        // "ms2-center" column.
+        private static VisualElement DetailHero(VisualElement split)
+        {
+            VisualElement hero = new VisualElement();
+            hero.style.flexGrow = 1f;
+            hero.style.alignItems = Align.Center;
+            hero.style.justifyContent = Justify.Center;
+            split.Add(hero);
+            return hero;
+        }
+
+        // The stats (right) column: fixed-width, not flexGrow, so MetaUi.TableRow's
+        // key/value SpaceBetween layout sits in the same ~420-580px column the Contracts
+        // screen's own CONTRACT DATA/PROTOCOL panels use, rather than stretching across
+        // whatever width the hero leaves it (confirmed live 2026-11-25: with no cap, the
+        // key/value gap ballooned to span the whole detail pane).
+        private const float DetailStatsColumnWidth = 430f;
+
+        private static VisualElement DetailStatsColumn(VisualElement split)
+        {
+            VisualElement stats = new VisualElement();
+            stats.style.width = DetailStatsColumnWidth;
+            stats.style.flexShrink = 0f;
+            stats.style.marginLeft = 36f;
+            stats.style.justifyContent = Justify.Center;
+            split.Add(stats);
+            return stats;
+        }
+
+        // A bordered stat card — ModeSelectController's own Card(family, strength): CONTRACT
+        // DATA/PROTOCOL/THIS RUN are each their own chamfered MetaUi.Panel box sat in the fixed
+        // stats column, not bare text stacked in the hero panel. Width comes from the host
+        // column (DetailStatsColumn), not this card, so it always matches that column.
+        private static VisualElement StatCard(Color family)
+        {
+            VisualElement card = MetaUi.Panel(family, 14f, dim: true, 20f);
+            card.style.marginBottom = 16f;
+            return card;
+        }
+
+        // STRUCTURE DATA / COMPOSITION NOTES: the same two-panel vocabulary the Contracts
+        // screen's selected-entry view uses (ModeSelectController's CONTRACT DATA/_dStats via
+        // MetaUi.TableRow, and PROTOCOL/_rulesHost via MetaUi.Bullet — see FillRules/IntelParts
+        // there), fed from whatever composition data this entry's source actually has: real
+        // BandDef totals for a game structure, or the cells file's own per-layer counts for one
+        // of our exports (bands aren't known for those — they're a painted map, not yet a
+        // contract with BandDef enemy/deposit seeding).
+        private static void AddStructureStatsPanel(VisualElement host, LoadEntry entry, int cellCount)
+        {
+            VisualElement data = StatCard(Accent);
+            data.Add(Head(Loc.T("gravebuilder.structures.data_head", "STRUCTURE DATA"), first: true));
+            MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_tiles", "TILES"), cellCount.ToString("n0", Loc.Culture));
+
+            List<string> notes = new List<string>();
             if (entry.Local)
             {
-                actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.structures.delete_button", "DELETE"), () => DeleteLocalStructure(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
-                    Loc.T("gravebuilder.structures.delete_tooltip", "Delete this export's files (asks first).")));
+                Dictionary<int, int> layers = LocalLayerCounts(entry.DefPath);
+                if (layers != null)
+                {
+                    foreach (int layer in layers.Keys.OrderBy(l => l))
+                    {
+                        MetaUi.TableRow(data, LayerColourName(layer), layers[layer].ToString("n0", Loc.Culture), StructureSilhouette.LayerColour(layer));
+                        notes.Add($"{LayerColourName(layer)} — {LayerCaption(layer)}");
+                    }
+                }
             }
-            panel.Add(actions);
+            else if (entry.Def != null)
+            {
+                StructureDef def = entry.Def;
+                int bands = def.bands?.Length ?? 0;
+                MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_bands", "BANDS"), bands.ToString());
+                if (def.sealedLayers && bands > 1)
+                {
+                    MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_sealed", "SEALED LAYERS"), (bands - 1).ToString(), Accent);
+                    notes.Add(Loc.T("gravebuilder.structures.note_sealed", "Sealed layers. Deeper bands open as it's cleared."));
+                }
+                int hostiles = 0, rich = 0;
+                if (def.bands != null)
+                {
+                    foreach (BandDef b in def.bands)
+                    {
+                        hostiles += b.explosive + b.lightning + b.voidTiles + b.swarm;
+                        rich += b.special1 + b.special2 + b.special3 + b.meta1;
+                    }
+                }
+                if (hostiles > 0)
+                {
+                    MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_hostiles", "HOSTILES"), hostiles.ToString("n0", Loc.Culture), MetaUi.Crimson);
+                    notes.Add(Loc.T("gravebuilder.structures.note_hostiles", "Hostiles nest inside."));
+                }
+                if (rich > 0)
+                {
+                    MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_rich", "RICH DEPOSITS"), rich.ToString("n0", Loc.Culture), MetaUi.TealLt);
+                    notes.Add(Loc.T("gravebuilder.structures.note_rich", "Rich deposits seeded deep."));
+                }
+            }
+            host.Add(data);
+
+            if (notes.Count > 0)
+            {
+                VisualElement rules = StatCard(MetaUi.TealLt);
+                rules.Add(Head(Loc.T("gravebuilder.structures.notes_head", "COMPOSITION NOTES"), first: true, color: MetaUi.TealLt));
+                foreach (string note in notes)
+                {
+                    MetaUi.Bullet(rules, note);
+                }
+                host.Add(rules);
+            }
         }
 
         // IMAGE: paint a PNG/JPEG onto the map in the five substrate colours. A typed path
@@ -2452,13 +2746,17 @@ namespace GraveBuilder
 
             content.Add(GroupLabel(Loc.T("gravebuilder.palette.enemy_header", "ENEMY ENCOUNTERS")));
             content.Add(BodyText_(Loc.T("gravebuilder.palette.enemy_body", "Paints a hidden enemy marker. Destroying this tile (or mining close to it) wakes the enemy it hides.")));
+            // Resolved from the live SandboxMap.AltToTile on every build (ResolveSpecialTiles), so
+            // a mod-added tile gets its own button here; non-material keys go in this group.
+            List<SpecialTileEntry> specialTiles = ResolveSpecialTiles();
+            LogSpecialTiles(specialTiles);
             VisualElement behaviorTiles = Row();
             behaviorTiles.style.flexWrap = Wrap.Wrap;
-            for (int i = 0; i < BehaviorTileCount; i++)
+            foreach (SpecialTileEntry entry in specialTiles.Where(e => !e.Material))
             {
-                string t = SpecialTiles[i];
+                string t = entry.Key;
                 Color c = MarkerColour(t);
-                behaviorTiles.Add(ToolHolder(t, MetaUi.Key(SpecialTileLabel[t], () => SelectTool(t, _layer), 196f, c), c));
+                behaviorTiles.Add(ToolHolder(t, MetaUi.Key(entry.Label, () => SelectTool(t, _layer), 196f, c), c));
             }
             content.Add(behaviorTiles);
 
@@ -2466,11 +2764,11 @@ namespace GraveBuilder
             content.Add(BodyText_(Loc.T("gravebuilder.palette.resource_body", "Seeds an extra resource pickup into this tile to mine.")));
             VisualElement materialTiles = Row();
             materialTiles.style.flexWrap = Wrap.Wrap;
-            for (int i = BehaviorTileCount; i < SpecialTiles.Length; i++)
+            foreach (SpecialTileEntry entry in specialTiles.Where(e => e.Material))
             {
-                string t = SpecialTiles[i];
+                string t = entry.Key;
                 Color c = MarkerColour(t);
-                materialTiles.Add(ToolHolder(t, MetaUi.Key(SpecialTileLabel[t], () => SelectTool(t, _layer), 196f, c), c));
+                materialTiles.Add(ToolHolder(t, MetaUi.Key(entry.Label, () => SelectTool(t, _layer), 196f, c), c));
             }
             materialTiles.Add(ToolHolder(Erase, MetaUi.Key(Loc.T("gravebuilder.palette.erase", "ERASE"), () => SelectTool(Erase, _layer), 196f, MetaUi.Crimson), MetaUi.Crimson));
             content.Add(materialTiles);
@@ -2511,7 +2809,11 @@ namespace GraveBuilder
             content.Add(PairRow(
                 ActionBtn(Loc.T("gravebuilder.map.new_filled", "NEW (FILLED)"), () => NewMap(filled: true)),
                 ActionBtn(Loc.T("gravebuilder.map.new_empty", "NEW (EMPTY)"), () => NewMap(filled: false))));
-            content.Add(ActionBtn(Loc.T("gravebuilder.map.grow_to_radius", "GROW TO RADIUS"), GrowToRadius));
+            content.Add(PairRow(
+                AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.grow_to_radius", "GROW TO RADIUS"), GrowToRadius),
+                    Loc.T("gravebuilder.map.grow_to_radius_tooltip", "Extends the map to the radius field above. Never touches cells.")),
+                AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.shrink_to_radius", "SHRINK TO RADIUS"), ShrinkToRadius),
+                    Loc.T("gravebuilder.map.shrink_to_radius_tooltip", "Trims the map down to the radius field above, deleting any painted cells outside it (asks first if that would delete anything). Can be undone."))));
             content.Add(BodyText_(Loc.T("gravebuilder.map.override_intro", "Quick, private test: your next real mining sortie uses this map, but it never appears in the Contracts list. Use the EXPORT tab (STRUCTURES & PARTS, bottom bar) to publish a map properly instead.")));
             content.Add(AttachTooltip(ActionBtn(Loc.T("gravebuilder.map.save_override", "SAVE AS SANDBOX OVERRIDE"), SaveOverride),
                 Loc.T("gravebuilder.map.save_override_tooltip", "Writes this map as a one-off override: the next time you fly a real mining sortie, it uses this instead of its normal structure. Doesn't touch the Contracts list.")));
@@ -2525,6 +2827,8 @@ namespace GraveBuilder
         private static bool FillActive => _fillMode;
 
         private static bool MirrorActive => _mirror;
+
+        private static bool AxisMirrorActive => _axisMirror;
 
         private static bool SelectActive => _selectMode;
 
@@ -2604,7 +2908,7 @@ namespace GraveBuilder
         // function), over the existing _radiusText state ReadRadius already parses/clamps from.
         private void BuildRadiusControl(VisualElement content)
         {
-            Label caption = MetaUi.Text(Loc.F("gravebuilder.map.radius_caption", "Radius ({min}-{max}): size of a new map, or the target for GROW TO RADIUS", ("min", MinRadius), ("max", MaxRadius)), MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
+            Label caption = MetaUi.Text(Loc.F("gravebuilder.map.radius_caption", "Radius ({min}-{max}): size of a new map, or the target for GROW/SHRINK TO RADIUS", ("min", MinRadius), ("max", MaxRadius)), MetaUi.Face.Body, 18f, BodyText, 0f, wrap: true);
             caption.style.marginBottom = 4f;
             content.Add(caption);
 
@@ -2745,10 +3049,12 @@ namespace GraveBuilder
             return row;
         }
 
-        // Section header (MetaUi.PanelHead in the accent family).
-        private static Label Head(string text, bool first = false)
+        // Section header (MetaUi.PanelHead in the accent family, or `color` if given — the
+        // Contracts screen uses two fixed header colours this way, orange for CONTRACT DATA
+        // and teal for PROTOCOL, rather than tinting by the selected row's own family).
+        private static Label Head(string text, bool first = false, Color? color = null)
         {
-            Label label = MetaUi.PanelHead(text, Accent);
+            Label label = MetaUi.PanelHead(text, color ?? Accent);
             label.style.marginTop = first ? 4f : 26f;
             label.style.marginBottom = 12f;
             return label;
@@ -3029,11 +3335,14 @@ namespace GraveBuilder
             _toggleRow.Clear();
             _toggleRow.Add(PairRow(
                 AttachTooltip(
-                    ActionBtn(_fillMode ? Loc.T("gravebuilder.tools.fill_on", "FILL MODE: ON") : Loc.T("gravebuilder.tools.fill_off", "FILL MODE: OFF"), ToggleFill, family: _fillMode ? Accent : Neutral, pulse: _fillMode),
-                    Loc.T("gravebuilder.tools.fill_tooltip", "When on, one left click floods every connected cell matching the clicked one with the selected tool. Right-click floods erase instead.")),
-                AttachTooltip(
                     ActionBtn(_mirror ? Loc.T("gravebuilder.tools.mirror_on", "MIRROR (180°): ON") : Loc.T("gravebuilder.tools.mirror_off", "MIRROR (180°): OFF"), ToggleMirror, family: _mirror ? Accent : Neutral, pulse: _mirror),
-                    Loc.T("gravebuilder.tools.mirror_tooltip", "When on, every paint, erase, fill, line and circle is repeated on the opposite side of the map, rotated 180° about the centre (Q R becomes -Q -R)."))));
+                    Loc.T("gravebuilder.tools.mirror_tooltip", "When on, every paint, erase, fill, line and circle is repeated on the opposite side of the map, rotated 180° about the centre (Q R becomes -Q -R). Can combine with MIRROR (L-R).")),
+                AttachTooltip(
+                    ActionBtn(_axisMirror ? Loc.T("gravebuilder.tools.axis_mirror_on", "MIRROR (L-R): ON") : Loc.T("gravebuilder.tools.axis_mirror_off", "MIRROR (L-R): OFF"), ToggleAxisMirror, family: _axisMirror ? Accent : Neutral, pulse: _axisMirror),
+                    Loc.T("gravebuilder.tools.axis_mirror_tooltip", "When on, every paint, erase, fill, line and circle is also mirrored left-right across the map's centre column. Turning both mirrors on paints all 4 positions (also mirrored top-bottom)."))));
+            _toggleRow.Add(AttachTooltip(
+                ActionBtn(_fillMode ? Loc.T("gravebuilder.tools.fill_on", "FILL MODE: ON") : Loc.T("gravebuilder.tools.fill_off", "FILL MODE: OFF"), ToggleFill, family: _fillMode ? Accent : Neutral, pulse: _fillMode),
+                Loc.T("gravebuilder.tools.fill_tooltip", "When on, one left click floods every connected cell matching the clicked one with the selected tool. Right-click floods erase instead.")));
             _toggleRow.Add(PairRow(
                 AttachTooltip(
                     ActionBtn(_lineMode ? Loc.T("gravebuilder.tools.line_on", "LINE: ON") : Loc.T("gravebuilder.tools.line_off", "LINE: OFF"), ToggleLine, family: _lineMode ? Accent : Neutral, pulse: _lineMode),
@@ -3069,17 +3378,23 @@ namespace GraveBuilder
             RefreshToggles();
             // The brush-footprint preview hides in fill mode.
             _canvas?.Repaint();
-            SetStatus(_fillMode ? Loc.F("gravebuilder.status.fill_on", "Fill mode on: a click flood-fills the connected region.{note}", ("note", Suffix(off))) : Loc.T("gravebuilder.status.fill_off", "Fill mode off: brush painting."));
+            SetStatus(_fillMode
+                ? Loc.F("gravebuilder.status.fill_on", "Fill mode on: a click flood-fills the connected region.{combo}{note}",
+                    ("combo", _selectMode ? Loc.T("gravebuilder.status.fill_select_combo", " SELECT is also on, so a click flood-SELECTS the connected region instead of painting.") : ""),
+                    ("note", Suffix(off)))
+                : Loc.T("gravebuilder.status.fill_off", "Fill mode off: brush painting."));
         }
 
         // ---- line & circle tools ------------------------------------------------------
         // LINE and CIRCLE are toggles like FILL MODE/SELECT. Exclusivity: turning one on turns
         // off the other, fill mode and SELECT (and cancels paste placement, which would
         // otherwise win every click, as ToggleSelect does); turning fill mode or SELECT on
-        // turns both off. Fill mode + SELECT together is left as it always was (SELECT wins).
-        // So at most one drag-shape tool is ever on, and never alongside another tool that
-        // claims the same left/right click. Canvas precedence (HexCanvas.OnPointerDown):
-        // paste > LINE/CIRCLE > SELECT > fill > brush.
+        // turns both off. Fill mode + SELECT together is its own thing (FloodSelect): a click
+        // flood-selects the connected region instead of either painting or a brush-radius
+        // select-drag. So at most one drag-shape tool is ever on, and never alongside another
+        // tool that claims the same left/right click. Canvas precedence
+        // (HexCanvas.OnPointerDown): paste > LINE/CIRCLE > FILL+SELECT (flood-select) >
+        // plain fill > SELECT drag > brush.
         //
         // Both draw through BrushFootprint's disc logic (DiscFootprint): a line is the brush
         // disc at every cell of HexCanvas.HexLine(start, end); a circle is one disc centred on
@@ -3155,11 +3470,13 @@ namespace GraveBuilder
         public HexShape ShapeTool => LineActive ? HexShape.Line : CircleActive ? HexShape.Circle : HexShape.None;
 
         // Every cell within hex distance radius of (q, r) that's inside the extent, plus each
-        // one's (-q, -r) mirror when mirror is set (the extent is symmetric, so a mirror is in
-        // it exactly when its source is). The same radius loop and test StrokePaint/SelectPaint
-        // use; BrushFootprint is this at _brush, CIRCLE at the dragged radius.
-        // The loops are clipped to the extent's (q, r) bounding square first (cells outside it
-        // are out of extent anyway), so a big CIRCLE only walks the part that can land.
+        // one's MirrorPartners when mirror is set (the extent is symmetric under every one of
+        // those reflections, same proof as the old point-only comment: each preserves
+        // |q|+|r|+|q+r|, so a partner is in the extent exactly when its source is). The same
+        // radius loop and test StrokePaint/SelectPaint use; BrushFootprint is this at _brush,
+        // CIRCLE at the dragged radius. The loops are clipped to the extent's (q, r) bounding
+        // square first (cells outside it are out of extent anyway), so a big CIRCLE only walks
+        // the part that can land.
         private void DiscFootprint(int q, int r, int radius, bool mirror, HashSet<Vector2Int> into)
         {
             int e = _canvas != null ? _canvas.Extent : int.MaxValue / 4;
@@ -3179,9 +3496,9 @@ namespace GraveBuilder
                         continue;
                     }
                     into.Add(c);
-                    if (mirror && (c.x != 0 || c.y != 0))
+                    if (mirror)
                     {
-                        into.Add(-c);
+                        MirrorPartners(c.x, c.y, into);
                     }
                 }
             }
@@ -3212,7 +3529,7 @@ namespace GraveBuilder
             }
             else if (shape == HexShape.Circle)
             {
-                DiscFootprint(start.x, start.y, CircleRadius(start, end), MirrorActive, into);
+                DiscFootprint(start.x, start.y, CircleRadius(start, end), MirrorActive || AxisMirrorActive, into);
             }
         }
 
@@ -3234,7 +3551,7 @@ namespace GraveBuilder
                 changed |= PaintOne(c.x, c.y, erase);
             }
             CommitAction();
-            string mirrored = MirrorActive ? Loc.T("gravebuilder.status.shape_mirrored_note", ", mirrored") : "";
+            string mirrored = MirrorActive || AxisMirrorActive ? Loc.T("gravebuilder.status.shape_mirrored_note", ", mirrored") : "";
             if (changed)
             {
                 UpdateStatsNow();
@@ -3273,6 +3590,21 @@ namespace GraveBuilder
             SetStatus(_mirror ? Loc.T("gravebuilder.status.mirror_on", "Mirror on: every edit is repeated at (-q, -r).") : Loc.T("gravebuilder.status.mirror_off", "Mirror off."));
         }
 
+        // Independent of the point mirror above: left-right reflection across the map's centre
+        // column, (q, r) -> (-q-r, r) in this screen's axial coordinates (MirrorPartners has the
+        // derivation). The two combine: with both on, PaintWithMirror also paints their
+        // composition — a top-bottom reflection, (q, r) -> (q+r, -r) — so every edit lands at
+        // up to 4 positions.
+        private void ToggleAxisMirror()
+        {
+            _axisMirror = !_axisMirror;
+            RefreshToggles();
+            _canvas?.Repaint();
+            SetStatus(_axisMirror
+                ? Loc.F("gravebuilder.status.axis_mirror_on", "Mirror (L-R) on: every edit is also repeated at (-q-r, r).{combo}", ("combo", _mirror ? Loc.T("gravebuilder.status.axis_mirror_combo", " MIRROR (180°) is also on, so a top-bottom reflection paints too — up to 4 positions per edit.") : ""))
+                : Loc.T("gravebuilder.status.axis_mirror_off", "Mirror (L-R) off."));
+        }
+
         // ---- selection & clipboard ----------------------------------------------------
         // SELECT is a toggle like FILL MODE/MIRROR; PASTE is a toggle too (it reads CANCEL
         // PASTE, accent-coloured and pulsing, while placement is active). Canvas input precedence is
@@ -3308,6 +3640,17 @@ namespace GraveBuilder
             if (_clipRow != null)
             {
                 _clipRow.Clear();
+                if (_clipboard.Count > 0)
+                {
+                    VisualElement preview = Row();
+                    preview.style.alignItems = Align.Center;
+                    preview.style.marginBottom = 8f;
+                    VisualElement thumb = ClipboardThumb(40f);
+                    thumb.style.marginRight = 10f;
+                    preview.Add(thumb);
+                    preview.Add(MetaUi.Text(Loc.F("gravebuilder.tools.clipboard_count", "{n} CELLS ON CLIPBOARD", ("n", _clipboard.Count)), MetaUi.Face.Display, 15f, MetaUi.Green, 1.2f));
+                    _clipRow.Add(preview);
+                }
                 bool any = _selection.Count > 0;
                 _clipRow.Add(PairRow(
                     AttachTooltip(
@@ -3318,6 +3661,13 @@ namespace GraveBuilder
                         ActionBtn(Loc.T("gravebuilder.tools.cut", "CUT"), Cut, enabled: any),
                         Loc.F("gravebuilder.tools.cut_tooltip", "Copies every selected cell to the clipboard, empty ones included, then erases them from the map (one undo step). Shortcut: {combo}.",
                             ("combo", ShortcutBindings.ComboText(ShortcutBindings.Cut) ?? Loc.T("gravebuilder.shortcuts.unbound_note", "not currently bound"))))));
+                _clipRow.Add(PairRow(
+                    AttachTooltip(
+                        ActionBtn(Loc.T("gravebuilder.tools.rotate", "ROTATE 60°"), RotateClipboard, enabled: _clipboard.Count > 0),
+                        Loc.T("gravebuilder.tools.rotate_tooltip", "Rotates the clipboard 60° about its own centre. Click again for 120°, 180°, and so on. PASTE stamps it in the new orientation; the map isn't changed until you do.")),
+                    AttachTooltip(
+                        ActionBtn(Loc.T("gravebuilder.tools.flip", "FLIP"), FlipClipboard, enabled: _clipboard.Count > 0),
+                        Loc.T("gravebuilder.tools.flip_tooltip", "Flips the clipboard left-right about its own centre. PASTE stamps it in the new orientation; the map isn't changed until you do."))));
                 bool placing = PasteModeActive;
                 string pasteLabel = placing
                     ? Loc.T("gravebuilder.tools.cancel_paste", "CANCEL PASTE")
@@ -3352,7 +3702,9 @@ namespace GraveBuilder
             _canvas?.Repaint();
             RefreshClipboardButtons();
             SetStatus(_selectMode
-                ? Loc.F("gravebuilder.status.select_on", "Select on: left-drag adds cells to the selection, right-drag removes them; painting is paused.{cancelled}{note}", ("cancelled", cancelled ? Loc.T("gravebuilder.status.select_on_paste_cancelled", " Paste placement cancelled.") : ""), ("note", Suffix(off)))
+                ? Loc.F("gravebuilder.status.select_on", "Select on: left-drag adds cells to the selection, right-drag removes them; painting is paused.{combo}{cancelled}{note}",
+                    ("combo", _fillMode ? Loc.T("gravebuilder.status.select_fill_combo", " FILL MODE is also on, so a click flood-selects the connected region instead of a drag.") : ""),
+                    ("cancelled", cancelled ? Loc.T("gravebuilder.status.select_on_paste_cancelled", " Paste placement cancelled.") : ""), ("note", Suffix(off)))
                 : Loc.T("gravebuilder.status.select_off", "Select off: brush painting. The selection is kept for COPY/CUT."));
         }
 
@@ -3382,6 +3734,7 @@ namespace GraveBuilder
             {
                 _clipboard.Add(new ClipCell { Offset = c - anchor, Cell = CellAt(c) });
             }
+            _clipboardVersion++;
             return cells.Count;
         }
 
@@ -3455,6 +3808,63 @@ namespace GraveBuilder
             SetStatus(Loc.F("gravebuilder.status.paste_ready", "Paste: left-click stamps the {n}-cell clipboard centred on the cursor (each stamp is its own undo step). Right-click or CANCEL PASTE stops.", ("n", _clipboard.Count)));
         }
 
+        // ---- clipboard transforms -------------------------------------------------------
+        // Re-orient the clipboard in place, about its own anchor (ClipCell.Offset is already
+        // relative to that), before pasting it. Not an edit to the map — nothing here touches
+        // _map or goes through Begin/CommitAction — so it's not an undo step; the paste it
+        // feeds still is. Loading a part (LoadPart) replaces the clipboard the same way these
+        // do, so a rotated/flipped orientation doesn't survive past the next COPY/CUT/LOAD —
+        // save it as a part first if it's worth keeping.
+
+        // 60° about the origin, in this screen's axial coordinates: (q, r) -> (q+r, -q). Six
+        // applications return to the start; three give the same 180° point reflection
+        // MirrorPartners uses for MIRROR (180°) (derivation: cube coordinates x=q, z=r,
+        // y=-q-r, rotating 60° is the cyclic permutation (x,y,z) -> (-y,-z,-x), i.e.
+        // q'=x'=-y=q+r, r'=z'=-x=-q).
+        private void RotateClipboard()
+        {
+            if (_clipboard.Count == 0)
+            {
+                SetStatus(Loc.T("gravebuilder.status.clip_transform_empty", "The clipboard is empty. Select some cells and press COPY or CUT first, or LOAD a part."), error: true);
+                return;
+            }
+            for (int i = 0; i < _clipboard.Count; i++)
+            {
+                ClipCell cc = _clipboard[i];
+                Vector2Int o = cc.Offset;
+                cc.Offset = new Vector2Int(o.x + o.y, -o.x);
+                _clipboard[i] = cc;
+            }
+            _clipboardVersion++;
+            RefreshClipboardButtons();
+            // The paste ghost (if placement is active) reads the clipboard live, so this is
+            // enough to show the new orientation at once.
+            _canvas?.Repaint();
+            SetStatus(Loc.T("gravebuilder.status.clip_rotated", "Rotated the clipboard 60° about its own centre. PASTE stamps it in the new orientation."));
+        }
+
+        // Left-right reflection about the origin: (q, r) -> (-q-r, r) — MirrorPartners' own
+        // left-right formula, applied once to the clipboard instead of live while painting.
+        private void FlipClipboard()
+        {
+            if (_clipboard.Count == 0)
+            {
+                SetStatus(Loc.T("gravebuilder.status.clip_transform_empty", "The clipboard is empty. Select some cells and press COPY or CUT first, or LOAD a part."), error: true);
+                return;
+            }
+            for (int i = 0; i < _clipboard.Count; i++)
+            {
+                ClipCell cc = _clipboard[i];
+                Vector2Int o = cc.Offset;
+                cc.Offset = new Vector2Int(-o.x - o.y, o.y);
+                _clipboard[i] = cc;
+            }
+            _clipboardVersion++;
+            RefreshClipboardButtons();
+            _canvas?.Repaint();
+            SetStatus(Loc.T("gravebuilder.status.clip_flipped", "Flipped the clipboard left-right about its own centre. PASTE stamps it in the new orientation."));
+        }
+
         // ---- tools & painting ---------------------------------------------------------
 
         private static string SubstrateKey(int layer) => Substrate + "_" + layer;
@@ -3494,19 +3904,21 @@ namespace GraveBuilder
 
         // Brush-footprint preview: on whenever a click would run a brush-radius action, i.e.
         // a brush stroke (any palette tool) or a SELECT drag, mirroring the canvas's dispatch
-        // precedence (paste > SELECT > fill > brush): never during paste placement (it has its
-        // own ghost), never in fill mode unless SELECT overrides it. LINE uses the brush, so
-        // its hover shows the footprint (a drag swaps it for the line ghost); CIRCLE ignores
-        // brush size, so it shows none.
-        public bool BrushPreviewActive => !PasteModeActive && !CircleActive && (SelectActive || LineActive || !FillActive);
+        // precedence (paste > line/circle > flood-select > fill > SELECT drag > brush): never
+        // during paste placement (it has its own ghost), never in fill mode unless SELECT
+        // overrides it — except FILL+SELECT together is itself a flood click (FloodSelect), not
+        // a radius drag, so that combo still shows none. LINE uses the brush, so its hover shows
+        // the footprint (a drag swaps it for the line ghost); CIRCLE ignores brush size, so it
+        // shows none.
+        public bool BrushPreviewActive => !PasteModeActive && !CircleActive && (LineActive || (SelectActive && !FillActive) || !FillActive);
 
         // Exactly the cells a click at (q, r) would touch: the same hex-radius loop as
-        // StrokePaint/SelectPaint (DiscFootprint at _brush), plus the (-q, -r) mirrors when
-        // painting with MIRROR on (PaintWithMirror; SELECT never mirrors). Cells outside the
+        // StrokePaint/SelectPaint (DiscFootprint at _brush), plus whichever MirrorPartners when
+        // painting with a mirror on (PaintWithMirror; SELECT never mirrors). Cells outside the
         // extent are left out, as PaintOne/SelectPaint skip them.
         public void BrushFootprint(int q, int r, HashSet<Vector2Int> into)
         {
-            DiscFootprint(q, r, _brush, MirrorActive && !SelectActive, into);
+            DiscFootprint(q, r, _brush, (MirrorActive || AxisMirrorActive) && !SelectActive, into);
         }
 
         // One select-drag sample: every cell within the brush radius of (q, r), no mirror
@@ -3769,8 +4181,61 @@ namespace GraveBuilder
             {
                 UpdateStatsNow();
                 SetStatus(erase
-                    ? Loc.F("gravebuilder.status.flood_erased", "Flood-erased a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : ""))
-                    : Loc.F("gravebuilder.status.flood_filled", "Flood-filled a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : "")));
+                    ? Loc.F("gravebuilder.status.flood_erased", "Flood-erased a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive || AxisMirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : ""))
+                    : Loc.F("gravebuilder.status.flood_filled", "Flood-filled a region of {n} cells{mirrored}.", ("n", region.Count), ("mirrored", MirrorActive || AxisMirrorActive ? Loc.T("gravebuilder.status.flood_mirrored_note", " (mirrored)") : "")));
+            }
+            return changed;
+        }
+
+        // FILL + SELECT together: one click adds (or removes, right-click) every cell connected
+        // to (q, r) in the same exact state to the selection — same BFS as Fill, just writing to
+        // _selection instead of painting. Not an edit, so not recorded in undo (same as
+        // SelectPaint); no mirror either, for the same reason BrushFootprint/SelectPaint skip it.
+        public bool FloodSelect(int q, int r, bool remove)
+        {
+            if (_map == null || _canvas == null || !_canvas.InExtent(q, r))
+            {
+                return false;
+            }
+            Vector2Int start = new Vector2Int(q, r);
+            SandboxMap.Cell? match = CellAt(start);
+
+            List<Vector2Int> region = new List<Vector2Int>();
+            HashSet<Vector2Int> seen = new HashSet<Vector2Int> { start };
+            Queue<Vector2Int> frontier = new Queue<Vector2Int>();
+            frontier.Enqueue(start);
+            while (frontier.Count > 0)
+            {
+                Vector2Int c = frontier.Dequeue();
+                region.Add(c);
+                foreach (Vector2Int d in HexCanvas.Neighbours)
+                {
+                    Vector2Int n = c + d;
+                    if (seen.Contains(n) || !_canvas.InExtent(n.x, n.y))
+                    {
+                        continue;
+                    }
+                    seen.Add(n);
+                    if (SameCell(CellAt(n), match))
+                    {
+                        frontier.Enqueue(n);
+                    }
+                }
+            }
+
+            bool changed = false;
+            foreach (Vector2Int c in region)
+            {
+                changed |= remove ? _selection.Remove(c) : _selection.Add(c);
+            }
+            if (changed)
+            {
+                int filled = !remove && AutoFillLoopsActive ? FillEnclosedSelection() : 0;
+                RefreshClipboardButtons();
+                _canvas?.Repaint();
+                SetStatus(remove
+                    ? Loc.F("gravebuilder.status.flood_deselected", "Flood-deselected a region of {n} cells; {total} cell(s) selected.", ("n", region.Count), ("total", _selection.Count))
+                    : Loc.F("gravebuilder.status.flood_selected", "Flood-selected a region of {n} cells{filled_note}; {total} cell(s) selected. COPY or CUT them, or keep clicking.", ("n", region.Count), ("total", _selection.Count), ("filled_note", filled > 0 ? Loc.F("gravebuilder.status.selection_filled_note", " ({filled} enclosed cells auto-filled)", ("filled", filled)) : "")));
             }
             return changed;
         }
@@ -3799,7 +4264,7 @@ namespace GraveBuilder
             {
                 return Loc.T("gravebuilder.tiles.substrate", "Substrate");
             }
-            return SpecialTileLabel.TryGetValue(t, out string label) ? label : t;
+            return SpecialTileLabel.TryGetValue(t, out string label) ? label : FallbackTileLabel(t);
         }
 
         // Marker colours. The four shard tiles use the game's own real shard colours
@@ -3807,7 +4272,8 @@ namespace GraveBuilder
         // ColourTokens.TokenKeyOfTile — verified 2026-11-22) instead of invented ones, so the
         // palette matches what these actually look like elsewhere in the game (wallet icons,
         // the Mods screen). The 4 enemy-encounter tiles have no real 2D colour in the game
-        // (they're hidden markers, not a drawn tile type), so those stay UI-only choices.
+        // (they're hidden markers, not a drawn tile type), so those stay UI-only choices. Any
+        // other key (a mod-added tile) gets HashedTileColour's stable fallback.
         public Color MarkerColour(string tile)
         {
             switch (tile)
@@ -3820,18 +4286,49 @@ namespace GraveBuilder
                 case "special_2": return ColourTokens.PinkColor;
                 case "special_3": return ColourTokens.BlueColor;
                 case "meta_1": return ColourTokens.PurpleColor;
-                default: return new Color(0.6f, 0.6f, 0.6f);
+                default: return string.IsNullOrEmpty(tile) || tile == Substrate || tile == Erase ? new Color(0.6f, 0.6f, 0.6f) : HashedTileColour(tile);
             }
         }
 
         private bool PaintWithMirror(int q, int r, bool erase)
         {
             bool changed = PaintOne(q, r, erase);
-            if (MirrorActive && (q != 0 || r != 0))
+            if (!MirrorActive && !AxisMirrorActive)
             {
-                changed |= PaintOne(-q, -r, erase);
+                return changed;
+            }
+            HashSet<Vector2Int> partners = new HashSet<Vector2Int>();
+            MirrorPartners(q, r, partners);
+            partners.Remove(new Vector2Int(q, r));
+            foreach (Vector2Int p in partners)
+            {
+                changed |= PaintOne(p.x, p.y, erase);
             }
             return changed;
+        }
+
+        // Every mirror partner of (q, r) under whichever of MIRROR (180°)/MIRROR (L-R) are
+        // active, in this screen's 2D axial coordinates (x = sqrt(3)*(q + r/2), y = 1.5*r, as
+        // RenderSilhouette/HexCanvas use): the 180° point reflection is (-q, -r); the left-right
+        // reflection (negate x, keep y) solves to (-q-r, r). With both mirrors on, their
+        // composition — itself a reflection, top-bottom (negate y, keep x) — is (q+r, -r), so
+        // all 3 non-identity partners get added, giving 4-way symmetry. The single source both
+        // PaintWithMirror (painting) and DiscFootprint (brush/line/circle ghosts) read from, so
+        // a ghost always matches exactly what committing it will paint.
+        private static void MirrorPartners(int q, int r, HashSet<Vector2Int> into)
+        {
+            if (MirrorActive)
+            {
+                into.Add(new Vector2Int(-q, -r));
+            }
+            if (AxisMirrorActive)
+            {
+                into.Add(new Vector2Int(-q - r, r));
+            }
+            if (MirrorActive && AxisMirrorActive)
+            {
+                into.Add(new Vector2Int(q + r, -r));
+            }
         }
 
         // Apply the current tool to one cell inside the extent, recording its prior state.
@@ -4123,7 +4620,7 @@ namespace GraveBuilder
             }
             if (radius <= _map.radius)
             {
-                SetStatus(Loc.F("gravebuilder.status.grow_unchanged", "Nothing changed: {radius} is not larger than the current radius ({current}). Grow only extends the map; use NEW for a smaller one.", ("radius", radius), ("current", _map.radius)));
+                SetStatus(Loc.F("gravebuilder.status.grow_unchanged", "Nothing changed: {radius} is not larger than the current radius ({current}). Grow only extends the map; use SHRINK TO RADIUS for a smaller one.", ("radius", radius), ("current", _map.radius)));
                 return;
             }
             int old = _map.radius;
@@ -4133,6 +4630,55 @@ namespace GraveBuilder
             _canvas?.Refresh();
             UpdateStatsNow();
             SetStatus(Loc.F("gravebuilder.status.grew", "Grew the radius from {old} to {radius}; painted cells are unchanged.", ("old", old), ("radius", radius)));
+        }
+
+        // GROW's inverse: trims the extent down to the radius field, deleting any painted cells
+        // that fall outside it. Destructive when there's anything to lose, so it asks first with
+        // the same confirm modal DeleteLocalStructure uses; one undo step either way (BeginAction/
+        // CommitAction already record a radius change on its own, same as GrowToRadius).
+        private void ShrinkToRadius()
+        {
+            if (!ReadRadius(out int radius))
+            {
+                return;
+            }
+            if (radius >= _map.radius)
+            {
+                SetStatus(Loc.F("gravebuilder.status.shrink_unchanged", "Nothing changed: {radius} is not smaller than the current radius ({current}). Shrink only trims the map; use GROW TO RADIUS for a larger one.", ("radius", radius), ("current", _map.radius)));
+                return;
+            }
+            int cut = _map.cells.Keys.Count(k => HexLayout.Distance(0, 0, k.x, k.y) > radius);
+            if (cut == 0)
+            {
+                ShrinkToRadiusConfirmed(radius);
+                return;
+            }
+            VisualElement root = _doc != null ? _doc.rootVisualElement : null;
+            if (root == null)
+            {
+                return;
+            }
+            CommitAction();
+            TerminalUi.Confirm(root, "map-builder-confirm-shrink", Accent, Loc.T("gravebuilder.map.confirm_shrink_title", "SHRINK RADIUS"),
+                Loc.F("gravebuilder.map.confirm_shrink_body", "Shrinking to radius {radius} will delete {n} painted cell(s) outside the new boundary. This can be undone.", ("radius", radius), ("n", cut)),
+                Loc.T("gravebuilder.map.confirm_shrink_button", "SHRINK"), () => ShrinkToRadiusConfirmed(radius));
+        }
+
+        private void ShrinkToRadiusConfirmed(int radius)
+        {
+            int old = _map.radius;
+            BeginAction(Loc.T("gravebuilder.history.shrink_radius", "Shrink radius"));
+            List<Vector2Int> outside = _map.cells.Keys.Where(k => HexLayout.Distance(0, 0, k.x, k.y) > radius).ToList();
+            foreach (Vector2Int k in outside)
+            {
+                Touch(k);
+                _map.cells.Remove(k);
+            }
+            _map.radius = radius;
+            CommitAction();
+            _canvas?.Refresh();
+            UpdateStatsNow();
+            SetStatus(Loc.F("gravebuilder.status.shrunk", "Shrunk the radius from {old} to {radius}; removed {n} cell(s) outside the new boundary.", ("old", old), ("radius", radius), ("n", outside.Count)));
         }
 
         // ---- image import (LOAD IMAGE) ------------------------------------------------
@@ -4639,6 +5185,7 @@ namespace GraveBuilder
             }
 
             _loadSelected = -1;
+            _structRenaming = false;
             RebuildLoadList();
             RefreshLoadDetail();
             // The export form's ID hint checks against this list (overwrite / game-ID clash).
@@ -4732,13 +5279,7 @@ namespace GraveBuilder
                     Texture2D tex = LocalThumbTexture(entry.DefPath, out cellCount);
                     if (tex != null)
                     {
-                        thumb = new VisualElement { pickingMode = PickingMode.Ignore };
-                        thumb.style.flexGrow = 1f;
-                        thumb.style.backgroundImage = new StyleBackground(tex);
-                        thumb.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Contain);
-                        thumb.style.backgroundRepeat = new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
-                        thumb.style.backgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Center);
-                        thumb.style.backgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Center);
+                        thumb = ThumbImage(tex);
                     }
                 }
                 else if (entry.Def != null)
@@ -4756,6 +5297,46 @@ namespace GraveBuilder
                 slot.Add(thumb);
             }
             return slot;
+        }
+
+        // Per-layer non-empty cell counts for one of our own exports, for the detail pane's
+        // STRUCTURE DATA panel. Re-parses the cells file (cheap — only called once, when a row
+        // is selected) rather than extending LocalThumbTexture's cache, which is keyed and
+        // shaped for the thumbnail's own needs, not a layer breakdown.
+        private static Dictionary<int, int> LocalLayerCounts(string defPath)
+        {
+            try
+            {
+                JObject def = JObject.Parse(File.ReadAllText(defPath));
+                string cellsFile = (string)def["cells_file"];
+                if (string.IsNullOrEmpty(cellsFile))
+                {
+                    return null;
+                }
+                string cellsPath = Path.Combine(Path.GetDirectoryName(defPath), cellsFile);
+                if (!File.Exists(cellsPath))
+                {
+                    return null;
+                }
+                MegastructureData data = MegastructureData.FromJson(File.ReadAllText(cellsPath));
+                if (data?.layer == null)
+                {
+                    return null;
+                }
+                Dictionary<int, int> counts = new Dictionary<int, int>();
+                for (int i = 0; i < data.count; i++)
+                {
+                    int layer = data.layer[i];
+                    counts[layer] = counts.TryGetValue(layer, out int n) ? n + 1 : 1;
+                }
+                return counts;
+            }
+            catch (Exception e)
+            {
+                // A stats breakdown is decoration; never let one break the detail pane.
+                Plugin.Log.LogWarning($"MapBuilder: no layer breakdown for '{defPath}': {e.Message}");
+                return null;
+            }
         }
 
         private static Texture2D LocalThumbTexture(string defPath, out int cellCount)
@@ -4805,11 +5386,33 @@ namespace GraveBuilder
             {
                 return null;
             }
-            float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
-            for (int i = 0; i < d.count; i++)
+            return RenderSilhouetteCore(d.count, i => d.q[i], i => d.r[i], i => d.layer[i]);
+        }
+
+        // Same rendering, fed from clipboard/part cells instead of a MegastructureData: only the
+        // populated ones (an empty ClipCell.Cell is a hole, not a tile, same as COPY's tooltip
+        // says — nothing to draw for it).
+        private static Texture2D RenderSilhouette(IReadOnlyList<ClipCell> clip)
+        {
+            if (clip == null)
             {
-                float x = Mathf.Sqrt(3f) * (d.q[i] + d.r[i] / 2f);
-                float y = 1.5f * d.r[i];
+                return null;
+            }
+            List<ClipCell> cells = clip.Where(c => c.Cell.HasValue).ToList();
+            if (cells.Count == 0)
+            {
+                return null;
+            }
+            return RenderSilhouetteCore(cells.Count, i => cells[i].Offset.x, i => cells[i].Offset.y, i => cells[i].Cell.Value.layer);
+        }
+
+        private static Texture2D RenderSilhouetteCore(int count, Func<int, int> qAt, Func<int, int> rAt, Func<int, int> layerAt)
+        {
+            float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
+            for (int i = 0; i < count; i++)
+            {
+                float x = Mathf.Sqrt(3f) * (qAt(i) + rAt(i) / 2f);
+                float y = 1.5f * rAt(i);
                 xMin = Mathf.Min(xMin, x);
                 xMax = Mathf.Max(xMax, x);
                 yMin = Mathf.Min(yMin, y);
@@ -4825,12 +5428,12 @@ namespace GraveBuilder
                 hideFlags = HideFlags.HideAndDontSave
             };
             Color32[] px = new Color32[w * h];
-            for (int i = 0; i < d.count; i++)
+            for (int i = 0; i < count; i++)
             {
-                Color32 c = StructureSilhouette.LayerColour(d.layer[i]);
-                float x = Mathf.Sqrt(3f) * (d.q[i] + d.r[i] / 2f);
+                Color32 c = StructureSilhouette.LayerColour(layerAt(i));
+                float x = Mathf.Sqrt(3f) * (qAt(i) + rAt(i) / 2f);
                 int bx = Mathf.RoundToInt((x - xMin) * s) + 1;
-                int by = h - 2 - Mathf.RoundToInt((1.5f * d.r[i] - yMin) * s);
+                int by = h - 2 - Mathf.RoundToInt((1.5f * rAt(i) - yMin) * s);
                 for (int dy = 0; dy < 2; dy++)
                 {
                     for (int dx = 0; dx < 2; dx++)
@@ -4847,6 +5450,119 @@ namespace GraveBuilder
             tex.SetPixels32(px);
             tex.Apply(updateMipmaps: false, makeNoLongerReadable: false);
             return tex;
+        }
+
+        // ---- part + clipboard thumbnails ----------------------------------------------
+        // Same approach as LocalThumbTexture (structures), cached by file path + write time:
+        // a part is bare clipboard cells, so it renders through the ClipCell overload above
+        // instead of a MegastructureData.
+        private static readonly Dictionary<string, (DateTime stamp, Texture2D tex, int count)> _partThumbs = new Dictionary<string, (DateTime, Texture2D, int)>(StringComparer.OrdinalIgnoreCase);
+
+        private static Texture2D PartThumbTexture(string path, out int cellCount)
+        {
+            cellCount = 0;
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+            DateTime stamp = File.GetLastWriteTimeUtc(path);
+            if (_partThumbs.TryGetValue(path, out (DateTime stamp, Texture2D tex, int count) cached))
+            {
+                if (cached.stamp == stamp && cached.tex != null)
+                {
+                    cellCount = cached.count;
+                    return cached.tex;
+                }
+                if (cached.tex != null)
+                {
+                    UnityEngine.Object.Destroy(cached.tex);
+                }
+                _partThumbs.Remove(path);
+            }
+            List<ClipCell> cells = ReadPart(path, out _);
+            Texture2D tex = RenderSilhouette(cells);
+            cellCount = cells?.Count(c => c.Cell.HasValue) ?? 0;
+            if (tex != null)
+            {
+                _partThumbs[path] = (stamp, tex, cellCount);
+            }
+            return tex;
+        }
+
+        // Fixed-size slot matching LoadThumb, for a PartRow.
+        private static VisualElement PartThumb(PartEntry entry, float size)
+        {
+            VisualElement slot = new VisualElement { pickingMode = PickingMode.Ignore };
+            slot.style.width = size;
+            slot.style.height = size;
+            slot.style.flexShrink = 0f;
+            try
+            {
+                Texture2D tex = PartThumbTexture(entry.Path, out _);
+                if (tex != null)
+                {
+                    slot.Add(ThumbImage(tex));
+                }
+            }
+            catch (Exception e)
+            {
+                // A thumbnail is decoration; never let one break the list.
+                Plugin.Log.LogWarning($"MapBuilder: no thumbnail for part '{entry.Name}': {e.Message}");
+            }
+            return slot;
+        }
+
+        // Live clipboard preview (COPY/CUT's current contents), cached by _clipboardVersion so
+        // RefreshClipboardButtons/RefreshPartSaveButton — both called on every selection tweak —
+        // don't re-render a texture each time nothing actually changed.
+        private static int _clipboardThumbVersion = -1;
+        private static Texture2D _clipboardThumbTex;
+
+        private static VisualElement ClipboardThumb(float size)
+        {
+            VisualElement slot = new VisualElement { pickingMode = PickingMode.Ignore };
+            slot.style.width = size;
+            slot.style.height = size;
+            slot.style.flexShrink = 0f;
+            if (_clipboard.Count == 0)
+            {
+                return slot;
+            }
+            if (_clipboardThumbVersion != _clipboardVersion)
+            {
+                if (_clipboardThumbTex != null)
+                {
+                    UnityEngine.Object.Destroy(_clipboardThumbTex);
+                }
+                try
+                {
+                    _clipboardThumbTex = RenderSilhouette(_clipboard);
+                }
+                catch (Exception e)
+                {
+                    _clipboardThumbTex = null;
+                    Plugin.Log.LogWarning($"MapBuilder: no clipboard thumbnail: {e.Message}");
+                }
+                _clipboardThumbVersion = _clipboardVersion;
+            }
+            if (_clipboardThumbTex != null)
+            {
+                slot.Add(ThumbImage(_clipboardThumbTex));
+            }
+            return slot;
+        }
+
+        // EntryPreview's background-image setup, shared by PartThumb/ClipboardThumb.
+        private static VisualElement ThumbImage(Texture2D tex)
+        {
+            VisualElement thumb = new VisualElement { pickingMode = PickingMode.Ignore };
+            thumb.style.flexGrow = 1f;
+            thumb.style.backgroundImage = new StyleBackground(tex);
+            thumb.style.backgroundSize = new BackgroundSize(BackgroundSizeType.Contain);
+            thumb.style.backgroundRepeat = new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat);
+            thumb.style.backgroundPositionX = new BackgroundPosition(BackgroundPositionKeyword.Center);
+            thumb.style.backgroundPositionY = new BackgroundPosition(BackgroundPositionKeyword.Center);
+            return thumb;
         }
 
         private VisualElement LoadRow(int index, LoadEntry entry)
@@ -4943,6 +5659,7 @@ namespace GraveBuilder
         private void SelectLoadEntry(int index)
         {
             _loadSelected = index;
+            _structRenaming = false;
             PaintLoadRows();
             RefreshLoadDetail();
             SetStatus(Loc.F("gravebuilder.structures.status_selected", "Selected '{name}'.", ("name", _loadEntries[index].Label)));
@@ -5148,6 +5865,39 @@ namespace GraveBuilder
             {
                 RefreshLoadList();
                 SetStatus(Loc.F("gravebuilder.structures.status_delete_failed", "Deleting '{name}' failed: {error}", ("name", entry.Label), ("error", e.Message)), error: true);
+            }
+        }
+
+        // Edits just the def's "display_name" field in place (same file, same id, same
+        // cells_file — nothing re-injection depends on moves), then rescans and re-selects it
+        // by path, since RefreshLoadList always clears the selected index (a rescan can
+        // reorder entries).
+        private void RenameLocalStructure(LoadEntry entry, string newName)
+        {
+            newName = (newName ?? "").Trim();
+            if (newName.Length == 0)
+            {
+                SetStatus(Loc.T("gravebuilder.structures.status_rename_empty", "Type a name first."), error: true);
+                return;
+            }
+            try
+            {
+                JObject def = JObject.Parse(File.ReadAllText(entry.DefPath));
+                def["display_name"] = newName;
+                File.WriteAllText(entry.DefPath, def.ToString(Formatting.Indented));
+                string path = entry.DefPath;
+                _structRenaming = false;
+                RefreshLoadList();
+                int idx = _loadEntries.FindIndex(e => e.Local && string.Equals(e.DefPath, path, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    SelectLoadEntry(idx);
+                }
+                SetStatus(Loc.F("gravebuilder.structures.status_renamed", "Renamed to '{name}'.", ("name", newName)));
+            }
+            catch (Exception e)
+            {
+                SetStatus(Loc.F("gravebuilder.structures.status_rename_failed", "Renaming failed: {error}", ("error", e.Message)), error: true);
             }
         }
 
@@ -5566,6 +6316,8 @@ namespace GraveBuilder
                     ["glyph_count"] = 0,
                     ["green_count"] = -1
                 };
+                // So a mod-added tile exports as its own alt, not substrate (see SyncGameTileToAlt).
+                SyncGameTileToAlt();
                 File.WriteAllText(Path.Combine(dir, cellsFile), _map.ToStructureJson("builder"));
                 File.WriteAllText(defPath, def.ToString(Formatting.Indented));
 
@@ -5695,7 +6447,7 @@ namespace GraveBuilder
                 JToken jt = c["tile"];
                 string tile;
                 // Any tile string is accepted, as SandboxMap.Load accepts any (a map loaded from
-                // a hand-edited override can hold tiles outside SpecialTiles, and a part copied
+                // a hand-edited override can hold tiles outside AltToTile, and a part copied
                 // from it must still load back); null/missing/empty = substrate, as there.
                 if (jt == null || jt.Type == JTokenType.Null)
                 {
@@ -5722,6 +6474,17 @@ namespace GraveBuilder
             }
             _partSaveHost.Clear();
             bool any = _clipboard.Count > 0;
+            if (any)
+            {
+                VisualElement preview = Row();
+                preview.style.alignItems = Align.Center;
+                preview.style.marginBottom = 10f;
+                VisualElement thumb = ClipboardThumb(56f);
+                thumb.style.marginRight = 12f;
+                preview.Add(thumb);
+                preview.Add(MetaUi.Text(Loc.F("gravebuilder.parts.save_preview_count", "{n} CELLS READY TO SAVE", ("n", _clipboard.Count)), MetaUi.Face.Display, 15f, MetaUi.Green, 1.2f));
+                _partSaveHost.Add(preview);
+            }
             _partSaveHost.Add(CompactActionBtn(any ? Loc.F("gravebuilder.parts.save_button_count", "SAVE CLIPBOARD AS PART ({n} CELLS)", ("n", _clipboard.Count)) : Loc.T("gravebuilder.parts.save_button", "SAVE CLIPBOARD AS PART"), SavePart, enabled: any));
         }
 
@@ -5779,12 +6542,29 @@ namespace GraveBuilder
                         try
                         {
                             List<ClipCell> cells = ReadPart(path, out string name);
+                            Dictionary<int, int> layerCounts = new Dictionary<int, int>();
+                            Dictionary<string, int> tileCounts = new Dictionary<string, int>();
+                            foreach (ClipCell cc in cells)
+                            {
+                                if (!cc.Cell.HasValue)
+                                {
+                                    continue;
+                                }
+                                SandboxMap.Cell cell = cc.Cell.Value;
+                                layerCounts[cell.layer] = layerCounts.TryGetValue(cell.layer, out int ln) ? ln + 1 : 1;
+                                if (!string.IsNullOrEmpty(cell.tile) && cell.tile != Substrate)
+                                {
+                                    tileCounts[cell.tile] = tileCounts.TryGetValue(cell.tile, out int tn) ? tn + 1 : 1;
+                                }
+                            }
                             _partEntries.Add(new PartEntry
                             {
                                 Name = name,
                                 Path = path,
                                 CellCount = cells.Count,
-                                EmptyCount = cells.Count(c => !c.Cell.HasValue)
+                                EmptyCount = cells.Count(c => !c.Cell.HasValue),
+                                LayerCounts = layerCounts,
+                                TileCounts = tileCounts
                             });
                         }
                         catch (Exception e)
@@ -5802,6 +6582,7 @@ namespace GraveBuilder
             // A rescan can reorder or drop entries, so the selection (an index) is cleared, as
             // RefreshLoadList does.
             _partSelected = -1;
+            _partRenaming = false;
             RebuildPartsList();
             RefreshPartDetail();
         }
@@ -5835,9 +6616,9 @@ namespace GraveBuilder
             PaintPartRows();
         }
 
-        // One parts-list row, as LoadRow minus the thumbnail (a part is bare clipboard cells,
-        // nothing StructureSilhouette can draw): the name, the cell count on the right. Click
-        // selects, double-click loads it into the clipboard.
+        // One parts-list row, as LoadRow: a thumbnail (PartThumb, rendered from the part's own
+        // cells rather than StructureSilhouette's game-structure cache), the name, the cell
+        // count on the right. Click selects, double-click loads it into the clipboard.
         private VisualElement PartRow(int index, PartEntry entry)
         {
             Color family = Accent;
@@ -5850,6 +6631,10 @@ namespace GraveBuilder
             row.style.paddingBottom = 9f;
             row.style.marginBottom = 8f;
             SlabFrame frame = MetaUi.Slab(row, family, dim: false, 12f);
+
+            VisualElement thumb = PartThumb(entry, LoadThumbSize);
+            thumb.style.marginRight = 14f;
+            row.Add(thumb);
 
             Label name = MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 17f, MetaUi.TextTone(family), 1.5f);
             name.pickingMode = PickingMode.Ignore;
@@ -5911,6 +6696,7 @@ namespace GraveBuilder
         private void SelectPartEntry(int index)
         {
             _partSelected = index;
+            _partRenaming = false;
             PaintPartRows();
             RefreshPartDetail();
             SetStatus(Loc.F("gravebuilder.parts.status_selected", "Selected part '{name}'.", ("name", _partEntries[index].Name)));
@@ -5947,36 +6733,143 @@ namespace GraveBuilder
             }
 
             PartEntry entry = _partEntries[_partSelected];
-            // Fills the whole detail column height and centres this (short, no-preview)
-            // content in it, as RefreshLoadDetail does, rather than a small text block
-            // pinned to the top with empty space under it.
+            // Fills the whole detail column height. Same Contracts-style hero + fixed stats
+            // column split as RefreshLoadDetail, with the same kind of preview image (PartThumb
+            // instead of EntryPreview, since a part has no StructureSilhouette cache entry).
             VisualElement panel = MetaUi.Panel(Accent, 15f, dim: true, 14f);
             panel.style.flexGrow = 1f;
-            panel.style.justifyContent = Justify.Center;
             _partDetailHost.Add(panel);
 
-            panel.Add(MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 28f, MetaUi.TextTone(Accent), 2f));
+            VisualElement split = Row();
+            split.style.flexGrow = 1f;
+            split.style.alignItems = Align.Stretch;
+            panel.Add(split);
+
+            VisualElement hero = DetailHero(split);
+
+            hero.Add(PartThumb(entry, 320f));
+
+            if (_partRenaming)
+            {
+                VisualElement renameWrap = new VisualElement();
+                renameWrap.style.width = 320f;
+                renameWrap.style.marginTop = 24f;
+                renameWrap.Add(Field(Loc.T("gravebuilder.parts.rename_label", "NEW NAME"), _partRenameText ?? entry.Name, v => _partRenameText = v, out TextField renameField));
+                hero.Add(renameWrap);
+
+                VisualElement renameActions = Row();
+                renameActions.style.justifyContent = Justify.Center;
+                renameActions.style.marginTop = 4f;
+                renameActions.style.marginBottom = 16f;
+                VisualElement saveNameBtn = CompactActionBtn(Loc.T("gravebuilder.parts.rename_save", "SAVE NAME"), () => RenamePart(entry, _partRenameText), family: Accent, size: 17f, padX: 30f);
+                saveNameBtn.style.marginRight = 10f;
+                renameActions.Add(saveNameBtn);
+                renameActions.Add(CompactActionBtn(Loc.T("gravebuilder.parts.rename_cancel", "CANCEL"), () => { _partRenaming = false; RefreshPartDetail(); }, size: 17f, padX: 30f));
+                hero.Add(renameActions);
+            }
+            else
+            {
+                Label title = MetaUi.Text(entry.Name.ToUpperInvariant(), MetaUi.Face.DisplayBold, 32f, MetaUi.TextTone(Accent), 2f);
+                title.style.marginTop = 24f;
+                MetaUi.Center(title);
+                hero.Add(title);
+            }
 
             string cells = Loc.F("gravebuilder.parts.detail_sub", "SAVED PART · {n} cells{empty_note} · {file}", ("n", entry.CellCount), ("empty_note", entry.EmptyCount > 0 ? Loc.F("gravebuilder.parts.detail_empty_note", " ({empty} empty, which erase when pasted)", ("empty", entry.EmptyCount)) : ""), ("file", Path.GetFileName(entry.Path)));
             Label sub = MetaUi.Text(cells, MetaUi.Face.Body, 16f, DimText, 1.5f, wrap: true);
+            sub.style.maxWidth = 480f;
             sub.style.marginTop = 6f;
             sub.style.marginBottom = 20f;
-            panel.Add(sub);
+            MetaUi.Center(sub);
+            hero.Add(sub);
 
             Label descLabel = MetaUi.Text(Loc.T("gravebuilder.parts.detail_desc", "A saved clipboard. Loading it replaces the clipboard and takes you back to the map in paste mode: left-click stamps it. Deleting it removes its file; the clipboard is unchanged either way."), MetaUi.Face.Body, 17f, BodyText, 0.5f, wrap: true);
-            descLabel.style.maxWidth = 640f;
+            descLabel.style.maxWidth = 480f;
             descLabel.style.marginBottom = 24f;
-            panel.Add(descLabel);
+            MetaUi.Center(descLabel);
+            hero.Add(descLabel);
 
-            VisualElement actions = Row();
-            actions.style.flexWrap = Wrap.Wrap;
-            actions.style.alignItems = Align.Center;
-            VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.parts.load_button", "LOAD INTO CLIPBOARD"), () => LoadPart(entry), family: Accent, size: 17f, padX: 36f);
-            loadBtn.style.marginRight = 10f;
-            actions.Add(AttachTooltip(loadBtn, Loc.T("gravebuilder.parts.load_tooltip", "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it.")));
-            actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.parts.delete_button", "DELETE"), () => DeletePart(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
-                Loc.T("gravebuilder.parts.delete_tooltip", "Delete this part's file. The clipboard is unchanged.")));
-            panel.Add(actions);
+            if (!_partRenaming)
+            {
+                VisualElement actions = Row();
+                actions.style.flexWrap = Wrap.Wrap;
+                actions.style.justifyContent = Justify.Center;
+                VisualElement loadBtn = CompactActionBtn(Loc.T("gravebuilder.parts.load_button", "LOAD INTO CLIPBOARD"), () => LoadPart(entry), family: Accent, size: 17f, padX: 36f);
+                loadBtn.style.marginRight = 10f;
+                actions.Add(AttachTooltip(loadBtn, Loc.T("gravebuilder.parts.load_tooltip", "Replaces the clipboard with this part and takes you back to the map in paste mode: left-click stamps it.")));
+                VisualElement renameBtn = CompactActionBtn(Loc.T("gravebuilder.parts.rename_button", "RENAME"), () => { _partRenaming = true; _partRenameText = entry.Name; RefreshPartDetail(); }, size: 17f, padX: 36f);
+                renameBtn.style.marginRight = 10f;
+                actions.Add(renameBtn);
+                actions.Add(AttachTooltip(CompactActionBtn(Loc.T("gravebuilder.parts.delete_button", "DELETE"), () => DeletePart(entry), family: MetaUi.Crimson, size: 17f, padX: 36f),
+                    Loc.T("gravebuilder.parts.delete_tooltip", "Delete this part's file. The clipboard is unchanged.")));
+                hero.Add(actions);
+            }
+
+            VisualElement stats = DetailStatsColumn(split);
+            AddPartStatsPanel(stats, entry);
+        }
+
+        // Same STRUCTURE DATA / COMPOSITION NOTES vocabulary as AddStructureStatsPanel, fed
+        // from a part's own per-layer and per-special-tile counts (computed once in
+        // RefreshPartsList, since a part's cells are already fully read there).
+        private static void AddPartStatsPanel(VisualElement host, PartEntry entry)
+        {
+            VisualElement data = StatCard(Accent);
+            data.Add(Head(Loc.T("gravebuilder.parts.data_head", "STRUCTURE DATA"), first: true));
+            MetaUi.TableRow(data, Loc.T("gravebuilder.structures.stat_tiles", "TILES"), entry.CellCount.ToString("n0", Loc.Culture));
+            if (entry.EmptyCount > 0)
+            {
+                MetaUi.TableRow(data, Loc.T("gravebuilder.parts.stat_empty", "EMPTY CELLS"), entry.EmptyCount.ToString("n0", Loc.Culture), DimText);
+            }
+
+            List<string> notes = new List<string>();
+            if (entry.LayerCounts != null)
+            {
+                foreach (int layer in entry.LayerCounts.Keys.OrderBy(l => l))
+                {
+                    MetaUi.TableRow(data, LayerColourName(layer), entry.LayerCounts[layer].ToString("n0", Loc.Culture), StructureSilhouette.LayerColour(layer));
+                    notes.Add($"{LayerColourName(layer)} — {LayerCaption(layer)}");
+                }
+            }
+            if (entry.TileCounts != null)
+            {
+                // The PALETTE's own resolved order (behaviour tiles, then mod-added tiles, then
+                // shard/material tiles — ResolveSpecialTiles, from the live AltToTile), not
+                // insertion order; then any tile in the part that AltToTile doesn't know (a
+                // hand-edited part), alphabetically, so no count is silently dropped.
+                List<SpecialTileEntry> resolved = ResolveSpecialTiles();
+                HashSet<string> resolvedKeys = new HashSet<string>(resolved.Select(e => e.Key));
+                IEnumerable<(string Key, bool Hostile)> ordered = resolved.Select(e => (e.Key, !e.Material))
+                    .Concat(entry.TileCounts.Keys.Where(k => !resolvedKeys.Contains(k)).OrderBy(k => k, StringComparer.Ordinal).Select(k => (k, true)));
+                foreach ((string key, bool hostile) in ordered)
+                {
+                    if (!entry.TileCounts.TryGetValue(key, out int count) || count <= 0)
+                    {
+                        continue;
+                    }
+                    string label = TileLabel(key);
+                    // The same swatch colour as the tile's own TOOLS-panel button
+                    // (MarkerColour — an instance method, hence via _instance) rather than a
+                    // generic hostile/rich tint, so e.g. "Lightning" reads as its real yellow.
+                    Color swatch = _instance != null ? _instance.MarkerColour(key) : (hostile ? MetaUi.Crimson : MetaUi.TealLt);
+                    MetaUi.TableRow(data, label, count.ToString("n0", Loc.Culture), swatch);
+                    notes.Add(hostile
+                        ? Loc.F("gravebuilder.parts.note_hostile_tile", "Carries {label} tiles — hostiles nest here.", ("label", label))
+                        : Loc.F("gravebuilder.parts.note_rich_tile", "Carries {label} tiles — a rich deposit.", ("label", label)));
+                }
+            }
+            host.Add(data);
+
+            if (notes.Count > 0)
+            {
+                VisualElement rules = StatCard(MetaUi.TealLt);
+                rules.Add(Head(Loc.T("gravebuilder.structures.notes_head", "COMPOSITION NOTES"), first: true, color: MetaUi.TealLt));
+                foreach (string note in notes)
+                {
+                    MetaUi.Bullet(rules, note);
+                }
+                host.Add(rules);
+            }
         }
 
         // Replaces the clipboard with the part, ready for PASTE (same end state as COPY). Re-reads
@@ -5998,6 +6891,7 @@ namespace GraveBuilder
             }
             _clipboard.Clear();
             _clipboard.AddRange(cells);
+            _clipboardVersion++;
             // So re-saving after an edit overwrites the same part.
             _partNameText = name;
             _partNameField?.SetValueWithoutNotify(name);
@@ -6027,6 +6921,39 @@ namespace GraveBuilder
             catch (Exception e)
             {
                 SetStatus(Loc.F("gravebuilder.parts.status_delete_failed", "Deleting part '{name}' failed: {error}", ("name", entry.Name), ("error", e.Message)), error: true);
+            }
+        }
+
+        // Edits just the "name" field in place (same file, same cells) — re-saving under the
+        // new name happens through SAVE CLIPBOARD AS PART instead, which is keyed off the name
+        // textbox, not this. Rescans and re-selects it by path afterwards, same reasoning as
+        // RenameLocalStructure.
+        private void RenamePart(PartEntry entry, string newName)
+        {
+            newName = (newName ?? "").Trim();
+            if (newName.Length == 0)
+            {
+                SetStatus(Loc.T("gravebuilder.parts.status_rename_empty", "Type a name first."), error: true);
+                return;
+            }
+            try
+            {
+                JObject root = JObject.Parse(File.ReadAllText(entry.Path));
+                root["name"] = newName;
+                File.WriteAllText(entry.Path, root.ToString(Formatting.Indented));
+                string path = entry.Path;
+                _partRenaming = false;
+                RefreshPartsList();
+                int idx = _partEntries.FindIndex(e => string.Equals(e.Path, path, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                {
+                    SelectPartEntry(idx);
+                }
+                SetStatus(Loc.F("gravebuilder.parts.status_renamed", "Renamed part to '{name}'.", ("name", newName)));
+            }
+            catch (Exception e)
+            {
+                SetStatus(Loc.F("gravebuilder.parts.status_rename_failed", "Renaming part failed: {error}", ("error", e.Message)), error: true);
             }
         }
     }

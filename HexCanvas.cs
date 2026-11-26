@@ -14,6 +14,7 @@ namespace GraveBuilder
     {
         SandboxMap Map { get; }
         // When true a left/right click flood-fills (or flood-erases) instead of starting a stroke.
+        // While SELECT is also on, the click flood-SELECTS instead (FloodSelect), never the map.
         bool FillMode { get; }
         // One brush stroke = StrokeBegin, any number of StrokePaint, then exactly one StrokeEnd.
         void StrokeBegin();
@@ -30,6 +31,10 @@ namespace GraveBuilder
         bool SelectPaint(int q, int r, bool remove); // returns whether the selection changed
         // removed = the drag was a right-drag (remove from selection).
         void SelectEnd(bool removed);
+        // FILL + SELECT together: one click adds (or, on a right-click, removes) every cell
+        // connected to (q, r) in the same exact state, the same flood traversal as Fill but
+        // writing to the selection instead of the map. Not a drag, like Fill itself.
+        bool FloodSelect(int q, int r, bool remove); // returns whether the selection changed
         // Every selected cell, drawn with a highlight ring (empty when nothing should show).
         IEnumerable<Vector2Int> SelectedCells { get; }
 
@@ -681,9 +686,10 @@ namespace GraveBuilder
             }
             bool erase = e.button == 1;
 
-            // Dispatch precedence: paste placement, then LINE/CIRCLE, then SELECT, then fill,
-            // then the brush. (The host keeps LINE/CIRCLE exclusive of SELECT and fill, so the
-            // order between those only matters as a fallback.)
+            // Dispatch precedence: paste placement, then LINE/CIRCLE, then FILL+SELECT
+            // (flood-select), then plain fill, then SELECT drag, then the brush. (The host keeps
+            // LINE/CIRCLE exclusive of SELECT and fill, so the order between those only matters
+            // as a fallback.)
             if (_host.PasteActive)
             {
                 // Left click = one stamp (placement stays active); right click = cancel.
@@ -725,6 +731,23 @@ namespace GraveBuilder
                     this.CapturePointer(e.pointerId);
                     _host.Hover(c.x, c.y);
                     Repaint();
+                }
+                e.StopPropagation();
+                return;
+            }
+
+            if (_host.FillMode && _host.SelectMode)
+            {
+                // One click = one flood-select (or flood-deselect, right-click); no drag, no
+                // capture, same as plain fill below.
+                Vector2Int c = LocalToAxial(pos);
+                if (InExtent(c.x, c.y))
+                {
+                    _host.Hover(c.x, c.y);
+                    if (_host.FloodSelect(c.x, c.y, erase))
+                    {
+                        Repaint();
+                    }
                 }
                 e.StopPropagation();
                 return;
